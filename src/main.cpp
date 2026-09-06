@@ -1,100 +1,82 @@
-#include <Arduino.h>
+﻿#include <Arduino.h>
+#include "UltrasonicSensor.h"
+#include "DistanceIndicator.h"
+#include "DistanceZone.h"
 
-float cm = 0;
+// =====================================================================
+// Configuración de Salidas de Depuración (Debugging)
+// =====================================================================
+// Esta variable booleana controla si se muestran mensajes de ayuda
+// en el monitor serie para diagnosticar el estado del sensor y los LEDs.
+// - true: Muestra mensajes detallados de depuración.
+// - false: Muestra únicamente la salida estándar limpia.
+const bool debugActivo = false;
 
-// Pines LEDs
-const int LED_ROJO = 33;
-const int LED_AMARILLO = 25;
-const int LED_VERDE = 26;
+// =====================================================================
+// Pines del Microcontrolador (Variables en camelCase, sin guiones bajos)
+// =====================================================================
+const int ledRojo = 33;
+const int ledAmarillo = 25;
+const int ledVerde = 26;
 
-// Pines Sensor Ultrasónico
-const int TRIGGER = 14;
-const int ECHO = 27;
+const int pinTrigger = 14;
+const int pinEcho = 27;
 
+// =====================================================================
+// Creación de los Objetos
+// =====================================================================
+UltrasonicSensor sensor(pinTrigger, pinEcho);
+DistanceIndicator indicator(ledRojo, ledAmarillo, ledVerde);
 
-long readUltrasonicDistance()
-{
-  // Limpiar Trigger
-  digitalWrite(TRIGGER, LOW);
-  delayMicroseconds(2);
-
-  // Enviar pulso ultrasónico
-  digitalWrite(TRIGGER, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIGGER, LOW);
-
-  // Leer duración del eco
-  return pulseIn(ECHO, HIGH, 30000);
-}
-
-
-void setup()
-{
-  // Configurar LEDs
-  pinMode(LED_ROJO, OUTPUT);
-  pinMode(LED_AMARILLO, OUTPUT);
-  pinMode(LED_VERDE, OUTPUT);
-
-  // Configurar sensor
-  pinMode(TRIGGER, OUTPUT);
-  pinMode(ECHO, INPUT);
-
-  Serial.begin(9600);
-}
-
-
-void loop()
-{
-  long duracion = readUltrasonicDistance();
-
-  // Si no se recibe respuesta
-  if (duracion == 0)
-  {
-    digitalWrite(LED_ROJO, LOW);
-    digitalWrite(LED_AMARILLO, LOW);
-    digitalWrite(LED_VERDE, LOW);
-
-    Serial.println("FUERA DE ALCANCE");
+// Función sencilla para explicar en la consola serie el estado del sistema
+void imprimirDepuracion(float cm, DistanceZone zone) {
+  if (debugActivo) {
+    Serial.print("[Depuración] Distancia leída: ");
+    Serial.print(cm);
+    Serial.print(" cm | Zona evaluada: ");
+    if (zone == DistanceZone::Near) {
+      Serial.println("Cerca (Activo: LED Rojo)");
+    } else if (zone == DistanceZone::Medium) {
+      Serial.println("Media (Activo: LED Amarillo)");
+    } else if (zone == DistanceZone::Far) {
+      Serial.println("Lejos (Activo: LED Verde)");
+    } else {
+      Serial.println("Fuera de rango (Todos los LEDs apagados)");
+    }
   }
-  else
-  {
-    // Convertir a centímetros
-    cm = duracion * 0.01723;
+}
 
+void setup() {
+  Serial.begin(115200);
+
+  // Inicializar el sensor ultrasónico y el semáforo LED
+  sensor.begin();
+  indicator.begin();
+}
+
+void loop() {
+  // 1. Obtener la distancia medida en centímetros
+  float cm = sensor.measureDistanceCm();
+
+  // 2. Salida estándar idéntica al código original
+  if (cm <= 0.0f) {
+    Serial.println("FUERA DE ALCANCE");
+  } else {
     Serial.print(cm);
     Serial.println(" cm");
-
-    if (cm <= 10)
-    {
-      // Cerca
-      digitalWrite(LED_ROJO, HIGH);
-      digitalWrite(LED_AMARILLO, LOW);
-      digitalWrite(LED_VERDE, LOW);
-    }
-    else if (cm <= 20)
-    {
-      // Distancia media
-      digitalWrite(LED_ROJO, LOW);
-      digitalWrite(LED_AMARILLO, HIGH);
-      digitalWrite(LED_VERDE, LOW);
-    }
-    else if (cm <= 30)
-    {
-      // Lejos
-      digitalWrite(LED_ROJO, LOW);
-      digitalWrite(LED_AMARILLO, LOW);
-      digitalWrite(LED_VERDE, HIGH);
-    }
-    else
-    {
-      // Fuera de alcance (>30 cm)
-      digitalWrite(LED_ROJO, LOW);
-      digitalWrite(LED_AMARILLO, LOW);
-      digitalWrite(LED_VERDE, LOW);
-
+    if (cm > 30.0f) {
       Serial.println("FUERA DE ALCANCE");
     }
   }
+
+  // 3. Determinar la zona de proximidad correspondiente
+  DistanceZone zone = evaluateDistanceZone(cm);
+
+  // 4. Actualizar el semáforo LED con exclusión mutua
+  indicator.update(zone);
+
+  // 5. Imprimir información de depuración si debugActivo es true
+  imprimirDepuracion(cm, zone);
 
   delay(100);
 }

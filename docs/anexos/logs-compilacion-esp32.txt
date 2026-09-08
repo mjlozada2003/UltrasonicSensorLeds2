@@ -1,0 +1,36 @@
+================================================================================
+PLATFORMIO BUILD EXECUTION LOG (ESP32 FIRMWARE)
+Command: pio run -e esp32doit-devkit-v1
+Target: esp32doit-devkit-v1
+Framework: Arduino C++
+Status: SUCCESS (0 ERRORS, 0 WARNINGS)
+================================================================================
+
+Processing esp32doit-devkit-v1 (platform: espressif32; board: esp32doit-devkit-v1; framework: arduino)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32doit-devkit-v1.html
+PLATFORM: Espressif 32 (7.0.1) > DOIT ESP32 DEVKIT V1
+HARDWARE: ESP32 240MHz, 320KB RAM, 4MB Flash
+DEBUG: Current (cmsis-dap) External (cmsis-dap, esp-bridge, esp-prog, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - framework-arduinoespressif32 @ 3.20017.241212+sha.dcc1105b 
+ - tool-esptoolpy @ 2.41100.0 (4.11.0) 
+ - toolchain-xtensa-esp32 @ 8.4.0+2021r2-patch5
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 34 compatible libraries
+Scanning dependencies...
+No dependencies
+Building in release mode
+Retrieving maximum program size .pio\build\esp32doit-devkit-v1\firmware.elf
+Checking size .pio\build\esp32doit-devkit-v1\firmware.elf
+Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
+RAM:   [=         ]   6.6% (used 21488 bytes from 327680 bytes)
+Flash: [==        ]  20.6% (used 270649 bytes from 1310720 bytes)
+========================= [SUCCESS] Took 16.45 seconds =========================
+
+Environment          Status    Duration
+-------------------  --------  ------------
+esp32doit-devkit-v1  SUCCESS   00:00:16.450
+========================= 1 succeeded in 00:00:16.450 =========================

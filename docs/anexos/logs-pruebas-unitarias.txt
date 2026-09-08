@@ -1,0 +1,27 @@
+================================================================================
+PLATFORMIO TEST EXECUTION LOG (UNITY FRAMEWORK)
+Command: pio test -e native
+Platform: native
+Test Framework: Unity
+Status: PASSED (100% SUCCESS)
+================================================================================
+
+Verbosity level can be increased via `-v, -vv, or -vvv` option
+Collected 1 tests
+
+Processing test_distance in native environment
+--------------------------------------------------------------------------------
+Building...
+Testing...
+test\test_distance\testMain.cpp:52: testZeroAndNegativeDistance	[PASSED]
+test\test_distance\testMain.cpp:53: testNearZoneBoundaries	[PASSED]
+test\test_distance\testMain.cpp:54: testMediumZoneBoundaries	[PASSED]
+test\test_distance\testMain.cpp:55: testFarZoneBoundaries	[PASSED]
+test\test_distance\testMain.cpp:56: testOutOfRangeBoundaries	[PASSED]
+--------------- native:test_distance [PASSED] Took 3.29 seconds ---------------
+
+=================================== SUMMARY ===================================
+Environment    Test           Status    Duration
+-------------  -------------  --------  ------------
+native         test_distance  PASSED    00:00:03.294
+================== 5 test cases: 5 succeeded in 00:00:03.294 ==================

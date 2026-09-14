@@ -29,9 +29,8 @@ long UltrasonicSensor::measureEchoTime() {
 float UltrasonicSensor::measureDistanceCm() {
     long duracion = measureEchoTime();
 
-    // Si no se recibe eco o se agota el tiempo de espera
     if (duracion == 0) {
-        return 0.0f;
+        return -1.0f;   // antes: return 0.0f;
     }
 
     // Conversión a centímetros usando la velocidad del sonido en el aire

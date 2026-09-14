@@ -21,6 +21,8 @@ const int ledVerde = 26;
 
 const int pinTrigger = 14;
 const int pinEcho = 27;
+const unsigned long intervaloLecturaMs = 100;   // intervalo de tiempo entre lecturas del sensor en milisegundos
+unsigned long ultimaLecturaMs = 0;              // guarda el momento de la última lectura
 
 // =====================================================================
 // Creación de los Objetos
@@ -55,28 +57,32 @@ void setup() {
 }
 
 void loop() {
-  // 1. Obtener la distancia medida en centímetros
-  float cm = sensor.measureDistanceCm();
+  unsigned long ahora = millis();
 
-  // 2. Salida estándar idéntica al código original
-  if (cm <= 0.0f) {
-    Serial.println("FUERA DE ALCANCE");
-  } else {
-    Serial.print(cm);
-    Serial.println(" cm");
-    if (cm > 30.0f) {
+  if (ahora - ultimaLecturaMs >= intervaloLecturaMs) {
+    ultimaLecturaMs = ahora;
+
+    // 1. Obtener la distancia medida en centímetros
+    float cm = sensor.measureDistanceCm();
+
+    // 2. Salida estándar idéntica al código original
+    if (cm <= 0.0f) {
       Serial.println("FUERA DE ALCANCE");
+    } else {
+      Serial.print(cm);
+      Serial.println(" cm");
+      if (cm > 30.0f) {
+        Serial.println("FUERA DE ALCANCE");
+      }
     }
+
+    // 3. Determinar la zona de proximidad correspondiente
+    DistanceZone zone = evaluateDistanceZone(cm);
+
+    // 4. Actualizar el semáforo LED con exclusión mutua
+    indicator.update(zone);
+
+    // 5. Imprimir información de depuración si debugActivo es true
+    imprimirDepuracion(cm, zone);
   }
-
-  // 3. Determinar la zona de proximidad correspondiente
-  DistanceZone zone = evaluateDistanceZone(cm);
-
-  // 4. Actualizar el semáforo LED con exclusión mutua
-  indicator.update(zone);
-
-  // 5. Imprimir información de depuración si debugActivo es true
-  imprimirDepuracion(cm, zone);
-
-  delay(100);
 }

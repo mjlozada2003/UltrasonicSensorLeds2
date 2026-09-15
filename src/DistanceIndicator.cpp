@@ -1,4 +1,4 @@
-﻿#include "DistanceIndicator.h"
+#include "DistanceIndicator.h"
 
 DistanceIndicator::DistanceIndicator(int redPin, int yellowPin, int greenPin) {
     this->redPin = redPin;

@@ -1,5 +1,6 @@
-﻿#include <unity.h>
+#include <unity.h>
 #include "DistanceZone.h"
+
 
 void setUp(void) {
 }
@@ -7,15 +8,16 @@ void setUp(void) {
 void tearDown(void) {
 }
 
-void testZeroAndNegativeDistance(void) {
-    // Distancia nula o valores negativos deben ser OutOfRange
-    TEST_ASSERT_TRUE(evaluateDistanceZone(0.0f) == DistanceZone::OutOfRange);
+void testNegativeDistance(void) {
+    // Valores negativos (timeout o lectura errónea del sensor) deben ser OutOfRange
+    TEST_ASSERT_TRUE(evaluateDistanceZone(-0.01f) == DistanceZone::OutOfRange);
     TEST_ASSERT_TRUE(evaluateDistanceZone(-1.0f) == DistanceZone::OutOfRange);
     TEST_ASSERT_TRUE(evaluateDistanceZone(-50.0f) == DistanceZone::OutOfRange);
 }
 
 void testNearZoneBoundaries(void) {
-    // Zona cercana (menor o igual a 10 cm)
+    // Zona cercana (de 0.0 cm a 10.0 cm inclusive)
+    TEST_ASSERT_TRUE(evaluateDistanceZone(0.0f) == DistanceZone::Near);
     TEST_ASSERT_TRUE(evaluateDistanceZone(0.1f) == DistanceZone::Near);
     TEST_ASSERT_TRUE(evaluateDistanceZone(5.0f) == DistanceZone::Near);
     TEST_ASSERT_TRUE(evaluateDistanceZone(9.99f) == DistanceZone::Near);
@@ -49,7 +51,7 @@ void testOutOfRangeBoundaries(void) {
 int main(int argc, char **argv) {
     UNITY_BEGIN();
 
-    RUN_TEST(testZeroAndNegativeDistance);
+    RUN_TEST(testNegativeDistance);
     RUN_TEST(testNearZoneBoundaries);
     RUN_TEST(testMediumZoneBoundaries);
     RUN_TEST(testFarZoneBoundaries);

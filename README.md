@@ -36,11 +36,11 @@ El sistema **UltrasonicLedsSensor** mide la distancia de objetos en tiempo real 
 
 | Distancia Medida ($d$) | Zona | Estado de los LEDs | Luz Visible | Mensaje en Computadora |
 | :---: | :---: | :---: | :---: | :---: |
-| De $0.1$ a $10.0\text{ cm}$ | `Near` (Cerca) | Rojo = HIGH, Otros = LOW | 🔴 Solo luz Roja (Peligro / Proximidad crítica) | `"<d> cm"` |
+| De $0.0$ a $10.0\text{ cm}$ | `Near` (Cerca) | Rojo = HIGH, Otros = LOW | 🔴 Solo luz Roja (Peligro / Proximidad crítica) | `"<d> cm"` |
 | De $10.1$ a $20.0\text{ cm}$ | `Medium` (Medio) | Amarillo = HIGH, Otros = LOW | 🟡 Solo luz Amarilla (Advertencia) | `"<d> cm"` |
 | De $20.1$ a $30.0\text{ cm}$ | `Far` (Lejos) | Verde = HIGH, Otros = LOW | 🟢 Solo luz Verde (Zona segura) | `"<d> cm"` |
 | Mayor a $30.0\text{ cm}$ | `OutOfRange` | Todos = LOW | ⚫ Todas las luces apagadas (Fuera de rango) | `"<d> cm"` + `"FUERA DE ALCANCE"` |
-| Sin rebote o desconectado | `OutOfRange` | Todos = LOW | ⚫ Todas las luces apagadas (Sin eco) | `"FUERA DE ALCANCE"` |
+| Sin eco / Error ($-1.0\text{ cm}$) | `OutOfRange` | Todos = LOW | ⚫ Todas las luces apagadas (Sin eco) | `"FUERA DE ALCANCE"` |
 
 ---
 

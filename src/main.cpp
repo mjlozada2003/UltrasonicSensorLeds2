@@ -3,6 +3,7 @@
 #include "DistanceIndicator.h"
 #include "DistanceZone.h"
 
+
 // =====================================================================
 // Configuración de Salidas de Depuración (Debugging)
 // =====================================================================
@@ -66,7 +67,7 @@ void loop() {
     float cm = sensor.measureDistanceCm();
 
     // 2. Salida estándar idéntica al código original
-    if (cm <= 0.0f) {
+    if (cm < 0.0f) {
       Serial.println("FUERA DE ALCANCE");
     } else {
       Serial.print(cm);

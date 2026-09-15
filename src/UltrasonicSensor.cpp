@@ -1,4 +1,4 @@
-﻿#include "UltrasonicSensor.h"
+#include "UltrasonicSensor.h"
 
 UltrasonicSensor::UltrasonicSensor(int triggerPin, int echoPin, long timeoutMicros) {
     this->triggerPin = triggerPin;
@@ -22,7 +22,7 @@ long UltrasonicSensor::measureEchoTime() {
     delayMicroseconds(10);
     digitalWrite(triggerPin, LOW);
 
-    // 3. Medir duración del eco en el pin de recepción con tiempo límite
+    // 3. Medir duración del eco en el pin de recepción con tiempo límite (30 ms)
     return pulseIn(echoPin, HIGH, timeoutMicros);
 }
 
@@ -30,9 +30,9 @@ float UltrasonicSensor::measureDistanceCm() {
     long duracion = measureEchoTime();
 
     if (duracion == 0) {
-        return -1.0f;   // antes: return 0.0f;
+        return -1.0f; // Si no hay eco (timeout), se retorna -1.0f como código de error
     }
 
-    // Conversión a centímetros usando la velocidad del sonido en el aire
+    // Conversión a centímetros usando la velocidad del sonido en el aire (343 m/s / 2 = 0.01723 cm/µs)
     return duracion * 0.01723f;
 }

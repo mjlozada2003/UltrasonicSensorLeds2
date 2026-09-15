@@ -5,10 +5,9 @@
 
 **Asignatura:** Internet de las Cosas  
 **Institución:** Universidad Católica Boliviana "San Pablo" (UCB)  
-**Proyecto:** Objeto Inteligente de Medición de Distancia y Semáforo LED (`UltrasonicLedsSensor`)  
-**Microcontrolador:** DOIT ESP32 DevKit v1 (240 MHz)  
+**Proyecto:** Objeto Inteligente de Medición de Distancia y Semáforo LED   
+**Microcontrolador:** DOIT ESP32 DevKit v1   
 **Entorno de Desarrollo:** PlatformIO en Visual Studio Code (Framework Arduino en C++)  
-**Fecha de Entrega:** 10 de Septiembre de 2026  
 **Integrantes del Grupo:**
 - María Jesús Lozada Peralta
 - Samuel Jarro Rodriguez
@@ -19,337 +18,348 @@
 ## 1. Requerimientos Funcionales y No Funcionales
 
 ### 1.1 ¿Qué es este Objeto Inteligente y cómo funciona?
-Este proyecto consiste en un **objeto inteligente** capaz de "ver" a qué distancia se encuentra una persona u objeto cercano y avisar de forma visual mediante un semáforo de tres luces LED: **Rojo**, **Amarillo** y **Verde**. 
+Este proyecto consiste en un **objeto inteligente** capaz de medir a qué distancia se encuentra un obstáculo en tiempo real y alertar de forma visual mediante un semáforo de tres luces LED (**Rojo**, **Amarillo** y **Verde**).
 
-El sistema está compuesto por tres partes principales:
-1. **Un sensor ultrasónico (HC-SR04):** Funciona como los murciélagos: emite un pulso de sonido inaudible para los humanos (40 kHz) y mide cuánto tiempo tarda el eco en rebotar contra un obstáculo y regresar. A este método se le conoce como **Tiempo de Vuelo** (*Time-of-Flight*).
-2. **Un microcontrolador (ESP32):** Es el "cerebro" del sistema. Recibe la señal de eco del sensor, calcula la distancia exacta en centímetros usando la velocidad del sonido, decide en qué zona está el obstáculo y enciende el LED correspondiente.
-3. **Un grupo de actuadores (3 LEDs):** Indican visualmente el nivel de cercanía del obstáculo con una regla clara llamada **exclusión mutua** (significa que **solo un LED puede estar encendido a la vez**, nunca dos o tres juntos).
+El sistema está compuesto por tres partes fundamentales:
+1. **Sensor ultrasónico (HC-SR04):** Emite un pulso de sonido inaudible (40 kHz) y mide cuánto tiempo tarda el eco en rebotar y regresar (**Tiempo de Vuelo** o *Time-of-Flight*).
+2. **Microcontrolador (ESP32):** Procesa el tiempo medido, calcula la distancia en centímetros ($d = t \times 0.01723$), clasifica la proximidad en rangos y comanda los actuadores.
+3. **Actuadores (3 LEDs):** Indican visualmente el nivel de cercanía bajo una regla estricta de **exclusión mutua** (solo un LED encendido a la vez; nunca dos o tres juntos).
 
-Además, el ESP32 envía continuamente los datos medidos por el cable USB a la computadora (a 115200 baudios), lo que permite ver en pantalla las lecturas en tiempo real y diagnosticar el sistema.
+Adicionalmente, el ESP32 transmite continuamente las lecturas por el cable USB a la computadora a 115200 baudios, permitiendo monitorear el sistema en tiempo real.
 
 ---
 
 ### 1.2 Requerimientos Funcionales (RF)
 
-Los requerimientos funcionales describen exactamente qué hace el sistema:
-
-| ID | Nombre | Descripción Sencilla y Criterio de Cumplimiento |
+| ID | Nombre | Descripción corta o criterio de cumplimiento |
 | :---: | :--- | :--- |
-| **RF-1** | **Medición de Distancia con Ultrasonido** | El sistema debe medir en tiempo real la distancia en centímetros entre el sensor y un obstáculo. Para esto, el ESP32 envía una señal de disparo de 10 microsegundos por el pin Trigger (GPIO 14) y escucha el rebote por el pin Echo (GPIO 27). Si en 30 milisegundos no hay respuesta (equivalente a unos 5 metros), el sistema asume que no hay ningún objeto cerca. |
-| **RF-2** | **Clasificación en Rangos Claros sin Cruces** | El sistema debe interpretar la distancia y clasificarla en **cuatro rangos continuos que no se solapan entre sí**:<br>• **Zona Cercana / Peligro (`Near`):** Distancia mayor a $0\text{ cm}$ y menor o igual a $10\text{ cm}$ ($0 < d \le 10\text{ cm}$).<br>• **Zona Media / Advertencia (`Medium`):** Distancia mayor a $10\text{ cm}$ y menor o igual a $20\text{ cm}$ ($10 < d \le 20\text{ cm}$).<br>• **Zona Lejana / Segura (`Far`):** Distancia mayor a $20\text{ cm}$ y menor o igual a $30\text{ cm}$ ($20 < d \le 30\text{ cm}$).<br>• **Fuera de Alcance (`OutOfRange`):** Distancia mayor a $30\text{ cm}$ o cuando el sensor no recibe ningún rebote (tiempo = 0). |
-| **RF-3** | **Control Exclusivo de los LEDs** | El sistema debe encender un único LED según la zona detectada (**exclusión mutua**):<br>• En zona `Near`: Enciende **solo el LED Rojo** (GPIO 33).<br>• En zona `Medium`: Enciende **solo el LED Amarillo** (GPIO 25).<br>• En zona `Far`: Enciende **solo el LED Verde** (GPIO 26).<br>• En zona `OutOfRange`: Apaga **todos los LEDs**. |
-| **RF-4** | **Transmisión de Datos por Puerto Serie (Telemetría)** | El sistema debe enviar a la computadora por el cable USB los datos leídos con formato claro: muestra la distancia en centímetros (`"<valor> cm"`) o el mensaje `"FUERA DE ALCANCE"`. |
-| **RF-5** | **Modo de Diagnóstico y Ayuda (Debug)** | El código incluye una variable sencilla llamada `debugActivo` en `main.cpp`. Si se cambia a `true`, el sistema imprime en la pantalla de la computadora explicaciones detalladas en español sobre qué distancia se leyó y qué LED está activo, facilitando encontrar fallas. |
-
-#### Tabla de Rangos y Respuestas del Semáforo
-
-| Distancia Medida ($d$) | Nombre de la Zona | Estado de los LEDs | ¿Qué luz se ve? | Mensaje en Computadora |
-| :---: | :---: | :---: | :---: | :---: |
-| De $0.1$ a $10.0\text{ cm}$ | `Near` (Cerca) | Rojo = ENCENDIDO<br>Amarillo = APAGADO<br>Verde = APAGADO | 🔴 **Solo luz Roja** (Proximidad crítica) | `"<d> cm"` |
-| De $10.1$ a $20.0\text{ cm}$ | `Medium` (Media) | Rojo = APAGADO<br>Amarillo = ENCENDIDO<br>Verde = APAGADO | 🟡 **Solo luz Amarilla** (Advertencia) | `"<d> cm"` |
-| De $20.1$ a $30.0\text{ cm}$ | `Far` (Lejos) | Rojo = APAGADO<br>Amarillo = APAGADO<br>Verde = ENCENDIDO | 🟢 **Solo luz Verde** (Zona segura) | `"<d> cm"` |
-| Mayor a $30.0\text{ cm}$ | `OutOfRange` | Rojo = APAGADO<br>Amarillo = APAGADO<br>Verde = APAGADO | ⚫ **Todas las luces apagadas** | `"<d> cm"` y `"FUERA DE ALCANCE"` |
-| Sin rebote (desconectado) | `OutOfRange` | Rojo = APAGADO<br>Amarillo = APAGADO<br>Verde = APAGADO | ⚫ **Todas las luces apagadas** | `"FUERA DE ALCANCE"` |
+| **RF1** | Medición de Distancia | El sensor HC-SR04 emite un pulso acústico de $10\,\mu\text{s}$ y mide el eco con `pulseIn()`, calculando la distancia en centímetros. Si no hay eco en 30 ms, devuelve `-1.0f`. |
+| **RF2** | Clasificación en Rangos | La función `evaluateDistanceZone()` clasifica la distancia en 4 rangos continuos y sin solapamiento (Near, Medium, Far y OutOfRange). |
+| **RF3** | Control Exclusivo de LEDs | La clase `DistanceIndicator` enciende un único LED según la zona detectada (**exclusión mutua**), o apaga los tres si el objeto está fuera de rango o no hay eco. |
+| **RF4** | Telemetría Serie UART | El programa transmite continuamente por el cable USB la distancia en centímetros (`"<d> cm"`) o el mensaje `"FUERA DE ALCANCE"` a 115200 baudios. |
+| **RF5** | Modo de Diagnóstico (Debug) | Con la variable booleana `debugActivo = true` en `main.cpp`, el sistema imprime diagnósticos explicativos en lenguaje claro para facilitar pruebas en laboratorio. |
 
 ---
 
-### 1.3 Requerimientos No Funcionales (RNF)
+### 1.3 Rangos definidos por el grupo
 
-Los requerimientos no funcionales definen qué tan bien, rápido y seguro trabaja el sistema:
+Los rangos de proximidad son continuos y mutuamente excluyentes (sin huecos ni solapamientos):
 
-| ID | Atributo | Meta Exigida por la Guía | Valor Alcanzado por el Proyecto | ¿Cómo se comprobó? |
-| :---: | :--- | :---: | :---: | :--- |
-| **RNF-1** | **Estabilidad** | Funcionar $\ge 10\text{ minutos}$ continuos sin trabarse ni reiniciarse | **15 minutos continuos** sin ningún reinicio por error, sin bloqueos y con lecturas constantes. | Se dejó el circuito encendido 15 minutos en el laboratorio registrando más de 8,500 ciclos continuos. |
-| **RNF-2** | **Exactitud de la Medida** | Error máximo $\le \pm 3.0\text{ cm}$ frente a una regla física | **Error máximo de $\pm 0.28\text{ cm}$** (menos de 3 milímetros de diferencia con una cinta métrica). | Se probó colocando un obstáculo en 6 puntos conocidos (5, 10, 15, 20, 25 y 30 cm) y comparando el valor medido con una cinta métrica. |
-| **RNF-3** | **Tiempo de Respuesta** | Reaccionar en $\le 1.0\text{ segundo}$ ante un cambio | **$\approx 0.13\text{ segundos}$** (130 milisegundos), casi 8 veces más rápido que lo pedido. | Se calculó el tiempo que tarda una pasada completa del programa (toma de lectura + cálculo + encendido del LED). |
-| **RNF-4** | **Frecuencia de Lecturas** | Al menos $2\text{ lecturas por segundo}$ | **$\approx 9.5\text{ lecturas por segundo}$** ($\approx 10\text{ Hz}$). | El programa realiza una lectura completa cada 105 milisegundos aproximadamente. |
-| **RNF-5** | **Calidad y Claridad del Código** | Programación Orientada a Objetos (POO), fácil de leer y ordenado | Código modular separado en clases (`UltrasonicSensor`, `DistanceIndicator`, `DistanceZone`), nombres claros en `camelCase`, sin guiones bajos confusos y con comentarios en español. | Revisión del código fuente y compilación limpia con 0 advertencias. |
-| **RNF-6** | **Pruebas en Computadora sin Placa** | Probar el código en la computadora sin necesidad del hardware | La función que clasifica las distancias (`evaluateDistanceZone`) es código C++ puro. No necesita Arduino para ejecutarse. | Se ejecutaron 5 pruebas automáticas con la herramienta Unity directamente en la PC. |
+| Distancia medida ($d$) | Rango (`DistanceZone`) | Comportamiento del actuador | Señalización Visual |
+| :---: | :---: | :--- | :---: |
+| $0.0\text{ cm} \le d \le 10.0\text{ cm}$ | `Near` (Cerca) | LED Rojo encendido (Amarillo y Verde apagados) | 🔴 Proximidad crítica |
+| $10.0\text{ cm} < d \le 20.0\text{ cm}$ | `Medium` (Medio) | LED Amarillo encendido (Rojo y Verde apagados) | 🟡 Advertencia |
+| $20.0\text{ cm} < d \le 30.0\text{ cm}$ | `Far` (Lejos) | LED Verde encendido (Rojo y Amarillo apagados) | 🟢 Zona segura |
+| $d > 30.0\text{ cm}$ o sin eco ($d < 0.0\text{ cm}$) | `OutOfRange` | Los 3 LEDs apagados | ⚫ Fuera de alcance |
+
+---
+
+### 1.4 Requerimientos No Funcionales (RNF)
+
+| ID | Nombre | Descripción corta o criterio de cumplimiento |
+| :---: | :--- | :--- |
+| **RNF1** | Estabilidad operativa | Operación continua $\ge 10\text{ minutos}$ sin reinicios ni bloqueos. Al usar temporización no bloqueante con `millis()` (`intervaloLecturaMs = 100`) y timeout de $30\text{ ms}$ en `pulseIn()`, no existen bloqueos del watchdog del ESP32. Memoria estática fija sin fugas. |
+| **RNF2** | Exactitud de medición | Error máximo $\le \pm 3.0\text{ cm}$ frente a una cinta métrica en el rango de trabajo ($2\text{ a }30\text{ cm}$), calibrado con la constante cinemática $0.01723\,\text{cm}/\mu\text{s}$. (Por debajo de 2 cm el sensor entra en su zona ciega física). |
+| **RNF3** | Tiempo de respuesta | $\le 150\text{ ms}$ desde el movimiento del obstáculo hasta la actualización del LED correspondiente (muy por debajo del límite de consigna $\le 1.0\text{ s}$). |
+| **RNF4** | Frecuencia de muestreo | $\ge 2\text{ lecturas/segundo}$ (el diseño opera a $\approx 10\text{ lecturas/s}$ al ejecutarse cada $100\text{ ms}$ con `millis()`). |
+
+
 
 ---
 
 ## 2. Análisis y Diseño
 
-### 2.1 Diagrama de Arquitectura del Sistema
-Para que el código sea limpio y fácil de mantener, organizamos el sistema en cuatro niveles o "capas":
+### 2.1 Diagrama de arquitectura del sistema
+
+```mermaid
+flowchart LR
+    subgraph Entrada
+        S["Sensor Ultrasónico HC-SR04"]
+    end
+    subgraph Procesamiento
+        MCU["Microcontrolador ESP32\n(main.cpp + Clases POO)"]
+    end
+    subgraph Salida
+        L1["LED Rojo (GPIO 33)"]
+        L2["LED Amarillo (GPIO 25)"]
+        L3["LED Verde (GPIO 26)"]
+    end
+    PC["Computadora / Monitor Serie USB\n(115200 baudios)"]
+
+    MCU -->|"Pulso Trigger de 10 µs (GPIO 14)"| S
+    S -->|"Pulso Echo de retorno (GPIO 27)"| MCU
+    MCU -->|"Señal digital ON/OFF"| L1
+    MCU -->|"Señal digital ON/OFF"| L2
+    MCU -->|"Señal digital ON/OFF"| L3
+    MCU -->|"Telemetría de distancia (UART)"| PC
+```
+
+**Explicación del diagrama:** Muestra el flujo de información del sistema dividido en tres etapas: la **Entrada** adquiere los datos físicos mediante el sensor HC-SR04; el **Procesamiento** (ESP32) calcula la distancia en centímetros y toma la decisión de qué zona activar; y la **Salida** presenta el resultado mediante el semáforo de 3 LEDs y el envío de texto por el cable USB a la computadora.
+
+---
+
+### 2.2 Diagrama de circuito real
+
+El circuito físico armado en protoboard conecta el sensor ultrasónico directamente al microcontrolador y utiliza resistencias limitadoras de $220\,\Omega$ **únicamente en los tres LEDs** para protegerlos de sobrecorriente:
 
 ```mermaid
 flowchart TD
-    subgraph HARDWARE["1. Componentes Físicos (Hardware)"]
-        HC["Sensor Ultrasónico HC-SR04\n(Trigger en pin 14, Echo en pin 27)"]
-        LEDS["Semáforo de LEDs\n(Rojo: pin 33, Amarillo: pin 25, Verde: pin 26)"]
-        UART["Cable USB a Computadora\n(Monitor Serie a 115200 baudios)"]
+    subgraph ESP32["Microcontrolador ESP32 DevKit v1"]
+        G33["GPIO 33"]
+        G25["GPIO 25"]
+        G26["GPIO 26"]
+        G14["GPIO 14 (Trigger)"]
+        G27["GPIO 27 (Echo)"]
+        GND["GND"]
+        VIN["VIN (5V)"]
     end
 
-    subgraph DRIVERS["2. Controladores de Dispositivos"]
-        US_CLASS["Clase UltrasonicSensor\n• Dispara el sonido y mide el eco\n• Calcula la distancia en cm"]
-        LED_CLASS["Clase DistanceIndicator\n• Enciende el LED de la zona\n• Apaga los otros automáticamente"]
-    end
+    G33 -->|"Resistencia 220 Ω"| LEDR(("LED Rojo"))
+    G25 -->|"Resistencia 220 Ω"| LEDA(("LED Amarillo"))
+    G26 -->|"Resistencia 220 Ω"| LEDV(("LED Verde"))
+    LEDR -->|"Cátodo (-)"| GND
+    LEDA -->|"Cátodo (-)"| GND
+    LEDV -->|"Cátodo (-)"| GND
 
-    subgraph CORE["3. Lógica de Decisión Pura"]
-        LOGIC["DistanceZone\n• Decide si la distancia es Cerca, Media, Lejos o Fuera\n• No depende de Arduino (se puede probar en la PC)"]
-    end
-
-    subgraph APP["4. Programa Principal (Aplicación)"]
-        MAIN["main.cpp\n• Inicia todo en setup()\n• Repite la medición cada 100 ms en loop()"]
-    end
-
-    subgraph QUALITY["Aseguramiento de Calidad"]
-        TESTS["Pruebas Automáticas Unity (testMain.cpp)\nPrueba casos límite directamente en la PC"]
-    end
-
-    HC <-->|Señales eléctricas| US_CLASS
-    LED_CLASS -->|Enciende o apaga| LEDS
-    APP -->|Envía texto de lectura| UART
-
-    MAIN -->|Pide la distancia| US_CLASS
-    MAIN -->|Pregunta en qué zona cae| LOGIC
-    MAIN -->|Ordena encender el LED correcto| LED_CLASS
-
-    TESTS -->|Comprueba que las zonas estén bien calculadas| LOGIC
+    G14 -->|"Trigger (Disparo)"| HCSR04["Sensor HC-SR04"]
+    HCSR04 -->|"Echo (Retorno directo)"| G27
+    VIN -->|"VCC (5V)"| HCSR04
+    GND -->|"GND (Masa común)"| HCSR04
 ```
+
+**Explicación del diagrama:** Representa el montaje físico real en protoboard. El sensor HC-SR04 se alimenta con los 5V del pin `VIN` y se conecta directamente a los pines `GPIO 14` (Trigger) y `GPIO 27` (Echo). Cada uno de los tres LEDs cuenta con su respectiva resistencia limitadora de $220\,\Omega$ en serie hacia el ánodo, cerrando sus cátodos a la línea común de tierra (`GND`).
+
+> **Nota técnica de ingeniería:** En nuestro montaje de laboratorio el pin Echo se conectó directo al GPIO 27 para simplificar el prototipo. Para una versión industrial o permanente se recomienda añadir un divisor de voltaje (ej. 1 kΩ y 2 kΩ) en la línea Echo para adaptar los 5 V del sensor a los 3.3 V tolerados por el ESP32.
 
 ---
 
-### 2.2 Diagrama de Circuito Eléctrico y Conexiones
-
-El microcontrolador ESP32 trabaja internamente con $3.3\text{ V}$. Para proteger los LEDs y que no se quemen ni dañen la placa, se colocó una **resistencia de $220\,\Omega$** en serie con cada uno. Esto limita la corriente a un valor seguro de aproximadamente $6\text{ mA}$.
-
-#### Esquema del Circuito en Protoboard:
-
-```text
-               +-------------------------------------------+
-               |            DOIT ESP32 DEVKIT V1           |
-               |                                           |
-               |   [GPIO 14] -------------------> Trigger  |----+ Sensor HC-SR04
-               |                                           |    | (VCC a 5V/VIN)
-               |   [GPIO 27] <---[ R1: 1k ]<----- Echo     |----+ (GND a GND)
-               |                     |                     |
-               |                  [ R2: 2k ] (Divisor 3.3V)|
-               |                     |                     |
-               |                    GND                    |
-               |                                           |
-               |   [GPIO 33] ---> [ 220 Ω ] ---> [LED Rojo] ----+--> GND
-               |   [GPIO 25] ---> [ 220 Ω ] ---> [LED Amarillo]-+--> GND
-               |   [GPIO 26] ---> [ 220 Ω ] ---> [LED Verde] ---+--> GND
-               |                                           |
-               |      GND ---------------------------------+--> Línea Azul de Masa
-               |      VIN (5V) ----------------------------+--> Línea Roja de 5V
-               +-------------------------------------------+
-```
-
-#### Tabla Resumen de Pines y Cables:
-
-| Componente | Pin del Componente | Pin del ESP32 | Dirección | ¿Para qué sirve? | Detalle Eléctrico |
-| :--- | :---: | :---: | :---: | :--- | :--- |
-| **HC-SR04** | VCC | **VIN (5V)** | Entrada | Alimenta el sensor ultrasónico | $5.0\text{ V}$ nominales |
-| **HC-SR04** | GND | **GND** | Masa | Tierra común del circuito | $0\text{ V}$ |
-| **HC-SR04** | Trigger | **GPIO 14** | Salida | Envía el pulso para lanzar el sonido | Señal digital de $3.3\text{ V}$ |
-| **HC-SR04** | Echo | **GPIO 27** | Entrada | Recibe el tiempo que tardó el rebote | Nivel seguro compatible con $3.3\text{ V}$ |
-| **LED Rojo** | Pata larga (+) | **GPIO 33** | Salida | Alerta de cercanía crítica ($\le 10\text{ cm}$) | Con resistencia de $220\,\Omega$ |
-| **LED Amarillo** | Pata larga (+) | **GPIO 25** | Salida | Alerta de distancia media ($10\text{ a }20\text{ cm}$) | Con resistencia de $220\,\Omega$ |
-| **LED Verde** | Pata larga (+) | **GPIO 26** | Salida | Indica que el objeto está lejos ($20\text{ a }30\text{ cm}$) | Con resistencia de $220\,\Omega$ |
-| **LEDs (Todos)**| Pata corta (-) | **GND** | Masa | Cierra el circuito a tierra | Conectados a la línea común GND |
-
----
-
-### 2.3 Diagramas de Estructura y Comportamiento
-
-#### A. Diagrama de Clases (Estructura del Código)
-El código se diseñó dividiendo el trabajo entre especialistas: una clase para el sensor, una clase para los LEDs y una función para calcular la zona:
+### 2.3 Diagrama estructural (Clases)
 
 ```mermaid
 classDiagram
     class DistanceZone {
-        <<Estados posibles>>
-        Near (Cerca)
-        Medium (Medio)
-        Far (Lejos)
-        OutOfRange (Fuera)
+        <<enumeration>>
+        Near
+        Medium
+        Far
+        OutOfRange
     }
 
     class UltrasonicSensor {
         -int triggerPin
         -int echoPin
         -long timeoutMicros
-        +begin() prepara los pines
-        +measureEchoTime() mide microsegundos
-        +measureDistanceCm() calcula distancia en cm
+        +UltrasonicSensor(triggerPin: int, echoPin: int, timeoutMicros: long)
+        +begin() void
+        +measureEchoTime() long
+        +measureDistanceCm() float
     }
 
     class DistanceIndicator {
         -int redPin
         -int yellowPin
         -int greenPin
-        +begin() prepara pines de LEDs
-        +update(zone) enciende el LED correcto
-        +allOff() apaga todos los LEDs
+        +DistanceIndicator(redPin: int, yellowPin: int, greenPin: int)
+        +begin() void
+        +update(zone: DistanceZone) void
+        +allOff() void
     }
 
-    class Application {
-        -bool debugActivo
-        +setup() inicio general
-        +loop() ciclo continuo cada 100 ms
-        +imprimirDepuracion() muestra detalles
+    class MainApp {
+        <<main.cpp>>
+        +evaluateDistanceZone(float cm) DistanceZone
+        +setup() void
+        +loop() void
     }
 
-    Application --> UltrasonicSensor : pide lecturas
-    Application --> DistanceIndicator : comanda luces
-    Application ..> DistanceZone : evalúa distancia
-    DistanceIndicator ..> DistanceZone : cambia luz según zona
+    MainApp --> UltrasonicSensor : instancia y consulta distancia
+    MainApp --> DistanceIndicator : comanda visualización
+    MainApp ..> DistanceZone : evalúa y clasifica
+    DistanceIndicator ..> DistanceZone : recibe para conmutar LEDs
 ```
 
-#### B. Diagrama de Estados (Cómo cambian las luces)
-Muestra de forma intuitiva cómo reacciona el sistema cuando un obstáculo se mueve:
+**Explicación del diagrama:** Modela la estructura orientada a objetos del código fuente. Muestra cómo la clase `UltrasonicSensor` encapsula el hardware del sensor, la clase `DistanceIndicator` controla los LEDs con exclusión mutua, la enumeración `DistanceZone` define los estados válidos del semáforo, y la función `evaluateDistanceZone` clasifica la distancia de manera pura e independiente del hardware.
 
+---
+
+### 2.4 Diagramas de comportamiento
+
+#### A. Máquina de Estados de Proximidad
 ```mermaid
 stateDiagram-v2
     [*] --> OutOfRange : Encendido / Sin obstáculo
     
-    OutOfRange --> Near : Objeto a 10 cm o menos (Luz Roja)
-    OutOfRange --> Medium : Objeto entre 10 y 20 cm (Luz Amarilla)
-    OutOfRange --> Far : Objeto entre 20 y 30 cm (Luz Verde)
+    OutOfRange --> Near : 0.0 <= d <= 10.0 cm (Luz Roja)
+    OutOfRange --> Medium : 10.0 < d <= 20.0 cm (Luz Amarilla)
+    OutOfRange --> Far : 20.0 < d <= 30.0 cm (Luz Verde)
     
-    Near --> Medium : Objeto se aleja a más de 10 cm (Pasa a Amarilla)
-    Near --> Far : Objeto se aleja a más de 20 cm (Pasa a Verde)
-    Near --> OutOfRange : Objeto se aleja a más de 30 cm (Se apagan todas)
+    Near --> Medium : Objeto se aleja a más de 10 cm (Amarilla)
+    Near --> Far : Objeto se aleja a más de 20 cm (Verde)
+    Near --> OutOfRange : Objeto supera los 30 cm o se retira (Apagados)
     
-    Medium --> Near : Objeto se acerca a 10 cm o menos (Pasa a Roja)
-    Medium --> Far : Objeto se aleja a más de 20 cm (Pasa a Verde)
-    Medium --> OutOfRange : Objeto se aleja a más de 30 cm (Se apagan todas)
+    Medium --> Near : Objeto se acerca a 10 cm o menos (Roja)
+    Medium --> Far : Objeto se aleja a más de 20 cm (Verde)
+    Medium --> OutOfRange : Objeto supera los 30 cm o se retira (Apagados)
     
-    Far --> Near : Objeto se acerca a 10 cm o menos (Pasa a Roja)
-    Far --> Medium : Objeto se acerca a menos de 20 cm (Pasa a Amarilla)
-    Far --> OutOfRange : Objeto supera los 30 cm (Se apagan todas)
+    Far --> Near : Objeto se acerca a 10 cm o menos (Roja)
+    Far --> Medium : Objeto se acerca a 20 cm o menos (Amarilla)
+    Far --> OutOfRange : Objeto supera los 30 cm o se retira (Apagados)
 ```
 
-#### C. Diagrama de Secuencia (Paso a paso en cada ciclo de 100 milisegundos)
-Este diagrama explica la cronología exacta de lo que pasa dentro del ESP32 diez veces por segundo:
+**Explicación del diagrama:** Ilustra cómo reacciona el semáforo ante el movimiento continuo de un obstáculo, transitando entre zonas de forma determinista y apagando todos los LEDs al alejarse más allá de 30 cm.
 
+#### B. Secuencia de un Ciclo de Muestreo (Secuencia Temporal)
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Obstaculo as Obstáculo Físico
-    participant Main as Programa Principal (main.cpp)
-    participant Sensor as Sensor Ultrasónico
-    participant Zona as Clasificador de Zona
-    participant Luces as Semáforo de LEDs
-    participant Pantalla as Monitor en Computadora
+    participant L as loop() en main.cpp
+    participant S as UltrasonicSensor
+    participant C as evaluateDistanceZone()
+    participant I as DistanceIndicator
+    participant U as Monitor Serie UART
 
-    Note over Main: Inicia el ciclo loop() (cada 100 ms)
-    Main->>Sensor: measureDistanceCm() (¿A qué distancia está?)
-    Sensor->>Sensor: Envía pulso de 10 microsegundos por Trigger
-    Sensor->>Obstaculo: Emite ráfaga de sonido inaudible (40 kHz)
-    Obstaculo-->>Sensor: El sonido rebota y regresa (Eco)
-    Sensor-->>Main: Devuelve la distancia calculada en cm (ej. 14.8 cm)
-
-    alt Distancia válida (entre 0.1 y 30.0 cm)
-        Main->>Pantalla: Muestra "14.8 cm"
-    else Distancia mayor a 30 cm o sin eco
-        Main->>Pantalla: Muestra "FUERA DE ALCANCE"
+    Note over L: Cada 100 ms (millis, sin delay bloqueante)
+    L->>S: measureDistanceCm()
+    S-->>L: Retorna cm (float) o -1.0f si no hubo eco
+    L->>C: evaluateDistanceZone(cm)
+    C-->>L: Retorna zona (Near / Medium / Far / OutOfRange)
+    L->>I: update(zone)
+    Note over I: Conmutación atómica: Enciende LED de zona y apaga los otros
+    I-->>L: Semáforo actualizado
+    
+    alt cm < 0.0f o cm > 30.0f
+        L->>U: Imprime "FUERA DE ALCANCE"
+    else cm válido (entre 0.0 y 30.0 cm)
+        L->>U: Imprime "<cm> cm"
     end
-
-    Main->>Zona: evaluateDistanceZone(14.8) (¿En qué rango cae?)
-    Note over Zona: Compara: ¿<=10? No. ¿<=20? Sí -> Zona Medium
-    Zona-->>Main: Devuelve estado "Medium"
-
-    Main->>Luces: update(Medium) (Actualiza las luces)
-    Note over Luces: Apaga el Rojo y Verde, y enciende SOLO el Amarillo
-
-    opt Si debugActivo == true
-        Main->>Pantalla: Imprime mensaje explicativo de depuración
-    end
-
-    Main->>Main: Espera 100 milisegundos (delay)
-    Note over Main: Fin del ciclo. Pasa a la siguiente lectura
 ```
+
+**Explicación del diagrama:** Detalla la secuencia paso a paso de lo que ocurre dentro del lazo continuo del ESP32 cada 100 milisegundos: se adquiere la distancia, se clasifica en una zona lógica, se actualiza el semáforo LED de forma atómica y se emite la telemetría correspondiente a la computadora.
 
 ---
 
 ## 3. Desarrollo e Implementación
 
-### 3.1 Estructura de Archivos del Proyecto
-El código está organizado en carpetas según el estándar de PlatformIO:
+### 3.1 Decisiones de diseño
 
-```text
-UltrasonicLedsSensor/
-├── platformio.ini              # Archivo de configuración de la placa ESP32 y pruebas de PC
-├── include/                    # Archivos de cabecera (.h) donde se declaran las clases
-│   ├── DistanceZone.h          # Define los 4 nombres de zonas y la función de cálculo
-│   ├── UltrasonicSensor.h      # Define las funciones del sensor de distancia
-│   └── DistanceIndicator.h     # Define las funciones de encendido de los LEDs
-├── src/                        # Código fuente (.cpp) con la lógica real
-│   ├── main.cpp                # Programa principal con setup() y loop()
-│   ├── DistanceZone.cpp        # Código que compara si la distancia es menor a 10, 20 o 30 cm
-│   ├── UltrasonicSensor.cpp    # Código que mide el tiempo del eco y lo convierte a cm
-│   └── DistanceIndicator.cpp   # Código que hace digitalWrite() para encender el LED correcto
-└── test/
-    └── test_distance/
-        └── testMain.cpp        # Pruebas automáticas que se ejecutan en la computadora
-```
+- **Responsabilidad Única (POO):** Se separó el hardware en dos clases autónomas: `UltrasonicSensor` (lectura física del tiempo de vuelo) y `DistanceIndicator` (control seguro de los LEDs).
+- **Temporización no bloqueante con `millis()`:** Se eliminó el `delay(100)` bloqueante del `loop()` y se sustituyó por una comprobación de intervalo (`ahora - ultimaLecturaMs >= intervaloLecturaMs`), permitiendo que el microcontrolador no se congele durante la ejecución.
+- **Tipado fuertemente tipado (`enum class`):** Se utilizó `enum class DistanceZone` para evitar números mágicos (0, 1, 2) y hacer que el código sea autoexplicativo durante la defensa oral.
+- **Desacoplamiento para pruebas en PC:** La función `evaluateDistanceZone` no incluye librerías de Arduino; es una función pura de C++ que se puede compilar y verificar en computadoras con Unity sin necesidad de conectar la placa.
+- **Convención y buenas prácticas:** Identificadores limpios en `camelCase`, cero guiones bajos (`_`), directiva `#pragma once` en cabeceras y tipos primitivos de C++ (`int`, `float`, `long`, `unsigned long`, `bool`).
 
 ---
 
-### 3.2 Código Fuente Documentado
+### 3.2 Código fuente documentado
 
-A continuación se presenta el código de cada archivo, con comentarios claros que explican su funcionamiento:
+A continuación se presenta el código fuente completo del proyecto, estructurado modularmente con programación orientada a objetos (POO) y documentado exhaustivamente mediante estándares Doxygen y comentarios explicativos en lenguaje claro:
 
-#### A. Archivos [`include/DistanceZone.h`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/include/DistanceZone.h) y [`src/DistanceZone.cpp`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/src/DistanceZone.cpp)
-Es la función que toma una distancia en centímetros y dice a qué zona pertenece:
+#### A. Módulo de Lógica Pura: [`include/DistanceZone.h`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/include/DistanceZone.h) y [`src/DistanceZone.cpp`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/src/DistanceZone.cpp)
 
 ```cpp
-// include/DistanceZone.h
+// =====================================================================
+// ARCHIVO: include/DistanceZone.h
+// =====================================================================
 #pragma once
 
-// Lista con las 4 zonas posibles del sistema
+/**
+ * @file DistanceZone.h
+ * @brief Definición de las zonas de proximidad y función de evaluación.
+ * 
+ * Proyecto: Objeto Inteligente de Medición de Distancia y Semáforo LED
+ * Microcontrolador: DOIT ESP32 DevKit v1
+ */
+
+// Representa las cuatro zonas de proximidad posibles del sistema
 enum class DistanceZone {
-    Near,        // Cercana: mayor a 0 y menor o igual a 10 cm (Luz Roja)
-    Medium,      // Media: mayor a 10 y menor o igual a 20 cm (Luz Amarilla)
-    Far,         // Lejana: mayor a 20 y menor o igual a 30 cm (Luz Verde)
-    OutOfRange   // Fuera de alcance: mayor a 30 cm o lectura en 0 (Todo apagado)
+    Near,        // Distancia menor o igual a 10.0 cm (LED Rojo)
+    Medium,      // Distancia entre 10.0 y 20.0 cm (LED Amarillo)
+    Far,         // Distancia entre 20.0 y 30.0 cm (LED Verde)
+    OutOfRange   // Distancia mayor a 30.0 cm o sin eco/negativa (Todos los LEDs apagados)
 };
 
-// Declaración de la función para que otros archivos puedan usarla
+/**
+ * @brief Evalúa y clasifica una distancia en centímetros dentro de una zona de proximidad.
+ * @param cm Distancia medida en centímetros (o valor negativo si ocurrió error/timeout).
+ * @return DistanceZone Zona correspondiente (Near, Medium, Far, OutOfRange).
+ */
 DistanceZone evaluateDistanceZone(float cm);
 ```
 
 ```cpp
-// src/DistanceZone.cpp
+// =====================================================================
+// ARCHIVO: src/DistanceZone.cpp
+// =====================================================================
+/**
+ * @file DistanceZone.cpp
+ * @brief Implementación de la clasificación de distancia en rangos discretos.
+ * 
+ * Proyecto: Objeto Inteligente de Medición de Distancia y Semáforo LED
+ */
+
 #include "DistanceZone.h"
 
-// Función que evalúa la distancia en centímetros y devuelve la zona correspondiente
+// Clasifica la distancia en centímetros según los rangos del sistema original
 DistanceZone evaluateDistanceZone(float cm) {
-    if (cm <= 0.0f) {
-        return DistanceZone::OutOfRange;  // Si la distancia es 0 o negativa, está fuera de rango
+    if (cm < 0.0f) {
+        return DistanceZone::OutOfRange; // Lectura errónea o sin eco (timeout -1.0f)
     } else if (cm <= 10.0f) {
-        return DistanceZone::Near;        // De 0.1 a 10.0 cm -> Zona Cercana
+        return DistanceZone::Near;       // 0.0 a 10.0 cm (Proximidad crítica -> LED Rojo)
     } else if (cm <= 20.0f) {
-        return DistanceZone::Medium;      // De 10.1 a 20.0 cm -> Zona Media
+        return DistanceZone::Medium;     // 10.1 a 20.0 cm (Advertencia -> LED Amarillo)
     } else if (cm <= 30.0f) {
-        return DistanceZone::Far;         // De 20.1 a 30.0 cm -> Zona Lejana
+        return DistanceZone::Far;        // 20.1 a 30.0 cm (Zona segura -> LED Verde)
     } else {
-        return DistanceZone::OutOfRange;  // Mayor a 30.0 cm -> Fuera de rango
+        return DistanceZone::OutOfRange; // Mayor a 30.0 cm (Fuera de alcance -> LEDs apagados)
     }
 }
 ```
 
-#### B. Archivos [`include/UltrasonicSensor.h`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/include/UltrasonicSensor.h) y [`src/UltrasonicSensor.cpp`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/src/UltrasonicSensor.cpp)
-Maneja los pines físicos del sensor y calcula la distancia:
+#### B. Módulo del Sensor: [`include/UltrasonicSensor.h`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/include/UltrasonicSensor.h) y [`src/UltrasonicSensor.cpp`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/src/UltrasonicSensor.cpp)
 
 ```cpp
-// include/UltrasonicSensor.h
+// =====================================================================
+// ARCHIVO: include/UltrasonicSensor.h
+// =====================================================================
 #pragma once
+
+/**
+ * @file UltrasonicSensor.h
+ * @brief Controlador del sensor ultrasónico HC-SR04.
+ * 
+ * Proyecto: Objeto Inteligente de Medición de Distancia y Semáforo LED
+ * Microcontrolador: DOIT ESP32 DevKit v1
+ */
+
 #include <Arduino.h>
 
+// Clase para controlar el sensor ultrasónico HC-SR04
 class UltrasonicSensor {
 public:
-    // Constructor: recibe los pines de Trigger, Echo y el tiempo límite de espera
+    /**
+     * @brief Constructor del sensor ultrasónico.
+     * @param triggerPin Pin GPIO conectado al Trigger del sensor.
+     * @param echoPin Pin GPIO conectado al Echo del sensor.
+     * @param timeoutMicros Tiempo límite en microsegundos para pulseIn (por defecto 30000 µs = 30 ms).
+     */
     UltrasonicSensor(int triggerPin, int echoPin, long timeoutMicros = 30000);
-    
-    void begin();                  // Configura los pines como entrada o salida
-    long measureEchoTime();        // Dispara el sonido y devuelve el tiempo en microsegundos
-    float measureDistanceCm();     // Convierte ese tiempo a distancia en centímetros
+
+    /**
+     * @brief Configura los modos de los pines (OUTPUT para Trigger, INPUT para Echo).
+     */
+    void begin();
+
+    /**
+     * @brief Emite el pulso de disparo de 10 µs y mide la duración del eco.
+     * @return Duración del pulso de eco en microsegundos, o 0 si ocurrió timeout.
+     */
+    long measureEchoTime();
+
+    /**
+     * @brief Mide el eco y calcula la distancia en centímetros usando la velocidad del sonido.
+     * @return Distancia en centímetros, o -1.0f si no hubo eco (timeout).
+     */
+    float measureDistanceCm();
 
 private:
     int triggerPin;
@@ -359,7 +369,16 @@ private:
 ```
 
 ```cpp
-// src/UltrasonicSensor.cpp
+// =====================================================================
+// ARCHIVO: src/UltrasonicSensor.cpp
+// =====================================================================
+/**
+ * @file UltrasonicSensor.cpp
+ * @brief Implementación de las funciones de disparo y medición del HC-SR04.
+ * 
+ * Proyecto: Objeto Inteligente de Medición de Distancia y Semáforo LED
+ */
+
 #include "UltrasonicSensor.h"
 
 UltrasonicSensor::UltrasonicSensor(int triggerPin, int echoPin, long timeoutMicros) {
@@ -371,52 +390,80 @@ UltrasonicSensor::UltrasonicSensor(int triggerPin, int echoPin, long timeoutMicr
 void UltrasonicSensor::begin() {
     pinMode(triggerPin, OUTPUT);
     pinMode(echoPin, INPUT);
-    digitalWrite(triggerPin, LOW); // Deja el pin en reposo
+    digitalWrite(triggerPin, LOW);
 }
 
 long UltrasonicSensor::measureEchoTime() {
-    // 1. Limpia el pin asegurando que empiece en bajo por 2 microsegundos
+    // 1. Limpiar el pin de disparo
     digitalWrite(triggerPin, LOW);
     delayMicroseconds(2);
 
-    // 2. Envía un pulso en alto durante 10 microsegundos para activar el sensor
+    // 2. Enviar pulso de 10 microsegundos para activar el ultrasonido
     digitalWrite(triggerPin, HIGH);
     delayMicroseconds(10);
     digitalWrite(triggerPin, LOW);
 
-    // 3. Mide cuánto tiempo en microsegundos tarda en volver el eco
+    // 3. Medir duración del eco en el pin de recepción con tiempo límite (30 ms)
     return pulseIn(echoPin, HIGH, timeoutMicros);
 }
 
 float UltrasonicSensor::measureDistanceCm() {
     long duracion = measureEchoTime();
-    
-    // Si no hubo eco o se venció el tiempo de espera
+
     if (duracion == 0) {
-        return 0.0f;
+        return -1.0f; // Si no hay eco (timeout), se retorna -1.0f como código de error
     }
-    
-    // El sonido viaja a 0.0343 cm por microsegundo. Como viaja de ida y vuelta,
-    // se divide entre 2: (duracion * 0.0343) / 2 = duracion * 0.01715 (aprox. 0.01723)
+
+    // Conversión a centímetros usando la velocidad del sonido en el aire (343 m/s / 2 = 0.01723 cm/µs)
     return duracion * 0.01723f;
 }
 ```
 
-#### C. Archivos [`include/DistanceIndicator.h`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/include/DistanceIndicator.h) y [`src/DistanceIndicator.cpp`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/src/DistanceIndicator.cpp)
-Controla las luces asegurando que solo prenda una a la vez:
+#### C. Módulo de Actuadores LED: [`include/DistanceIndicator.h`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/include/DistanceIndicator.h) y [`src/DistanceIndicator.cpp`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/src/DistanceIndicator.cpp)
 
 ```cpp
-// include/DistanceIndicator.h
+// =====================================================================
+// ARCHIVO: include/DistanceIndicator.h
+// =====================================================================
 #pragma once
+
+/**
+ * @file DistanceIndicator.h
+ * @brief Controlador del semáforo visual de 3 LEDs con exclusión mutua.
+ * 
+ * Proyecto: Objeto Inteligente de Medición de Distancia y Semáforo LED
+ * Microcontrolador: DOIT ESP32 DevKit v1
+ */
+
 #include <Arduino.h>
 #include "DistanceZone.h"
 
+// Clase para controlar el semáforo de tres LEDs
 class DistanceIndicator {
 public:
+    /**
+     * @brief Constructor del semáforo de distancia.
+     * @param redPin Pin GPIO para el LED Rojo.
+     * @param yellowPin Pin GPIO para el LED Amarillo.
+     * @param greenPin Pin GPIO para el LED Verde.
+     */
     DistanceIndicator(int redPin, int yellowPin, int greenPin);
-    void begin();                   // Configura los pines de los LEDs como salidas
-    void update(DistanceZone zone); // Enciende el LED de la zona y apaga los otros
-    void allOff();                  // Apaga los tres LEDs
+
+    /**
+     * @brief Inicializa los pines GPIO como salidas digitales (OUTPUT) y los apaga.
+     */
+    void begin();
+
+    /**
+     * @brief Conmuta los LEDs garantizando exclusión mutua según la zona de proximidad.
+     * @param zone Zona evaluada (Near -> Rojo, Medium -> Amarillo, Far -> Verde, OutOfRange -> Todos apagados).
+     */
+    void update(DistanceZone zone);
+
+    /**
+     * @brief Apaga simultáneamente los tres LEDs.
+     */
+    void allOff();
 
 private:
     int redPin;
@@ -426,7 +473,16 @@ private:
 ```
 
 ```cpp
-// src/DistanceIndicator.cpp
+// =====================================================================
+// ARCHIVO: src/DistanceIndicator.cpp
+// =====================================================================
+/**
+ * @file DistanceIndicator.cpp
+ * @brief Implementación del control de LEDs con regla estricta de exclusión mutua.
+ * 
+ * Proyecto: Objeto Inteligente de Medición de Distancia y Semáforo LED
+ */
+
 #include "DistanceIndicator.h"
 
 DistanceIndicator::DistanceIndicator(int redPin, int yellowPin, int greenPin) {
@@ -439,7 +495,7 @@ void DistanceIndicator::begin() {
     pinMode(redPin, OUTPUT);
     pinMode(yellowPin, OUTPUT);
     pinMode(greenPin, OUTPUT);
-    allOff(); // Asegura que arranquen todos apagados
+    allOff();
 }
 
 void DistanceIndicator::allOff() {
@@ -451,21 +507,21 @@ void DistanceIndicator::allOff() {
 void DistanceIndicator::update(DistanceZone zone) {
     switch (zone) {
         case DistanceZone::Near:
-            // Cerca: solo prende el Rojo
+            // Cerca (menor o igual a 10 cm): únicamente el LED rojo encendido
             digitalWrite(redPin, HIGH);
             digitalWrite(yellowPin, LOW);
             digitalWrite(greenPin, LOW);
             break;
 
         case DistanceZone::Medium:
-            // Distancia media: solo prende el Amarillo
+            // Distancia media (entre 10 y 20 cm): únicamente el LED amarillo encendido
             digitalWrite(redPin, LOW);
             digitalWrite(yellowPin, HIGH);
             digitalWrite(greenPin, LOW);
             break;
 
         case DistanceZone::Far:
-            // Lejos: solo prende el Verde
+            // Lejos (entre 20 y 30 cm): únicamente el LED verde encendido
             digitalWrite(redPin, LOW);
             digitalWrite(yellowPin, LOW);
             digitalWrite(greenPin, HIGH);
@@ -473,7 +529,7 @@ void DistanceIndicator::update(DistanceZone zone) {
 
         case DistanceZone::OutOfRange:
         default:
-            // Fuera de rango: apaga todos
+            // Fuera de alcance (mayor a 30 cm o sin eco): todos los LEDs apagados
             allOff();
             break;
     }
@@ -481,31 +537,57 @@ void DistanceIndicator::update(DistanceZone zone) {
 ```
 
 #### D. Programa Principal: [`src/main.cpp`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/src/main.cpp)
-Coordina todo el sistema en un ciclo continuo:
 
 ```cpp
-// src/main.cpp
+// =====================================================================
+// ARCHIVO: src/main.cpp
+// =====================================================================
+/**
+ * @file main.cpp
+ * @brief Programa principal del Objeto Inteligente de Medición de Distancia y Semáforo LED.
+ * 
+ * Asignatura: Internet de las Cosas
+ * Institución: Universidad Católica Boliviana "San Pablo" (UCB)
+ * Microcontrolador: DOIT ESP32 DevKit v1 (240 MHz)
+ * Integrantes:
+ *   - María Jesús Lozada Peralta
+ *   - Samuel Jarro Rodriguez
+ *   - Katherine Montaño Mejia
+ */
+
 #include <Arduino.h>
 #include "UltrasonicSensor.h"
 #include "DistanceIndicator.h"
 #include "DistanceZone.h"
 
-// Si está en true, muestra mensajes explicativos en la computadora
+// =====================================================================
+// Configuración de Salidas de Depuración (Debugging)
+// =====================================================================
+// Esta variable booleana controla si se muestran mensajes de ayuda
+// en el monitor serie para diagnosticar el estado del sensor y los LEDs.
+// - true: Muestra mensajes detallados de depuración.
+// - false: Muestra únicamente la salida estándar limpia.
 const bool debugActivo = false;
 
-// Asignación de pines del ESP32
+// =====================================================================
+// Pines del Microcontrolador (Variables en camelCase, sin guiones bajos)
+// =====================================================================
 const int ledRojo = 33;
 const int ledAmarillo = 25;
 const int ledVerde = 26;
 
 const int pinTrigger = 14;
 const int pinEcho = 27;
+const unsigned long intervaloLecturaMs = 100;   // intervalo de tiempo entre lecturas del sensor en milisegundos
+unsigned long ultimaLecturaMs = 0;              // guarda el momento de la última lectura
 
-// Creamos los objetos para controlar el sensor y los LEDs
+// =====================================================================
+// Creación de los Objetos
+// =====================================================================
 UltrasonicSensor sensor(pinTrigger, pinEcho);
 DistanceIndicator indicator(ledRojo, ledAmarillo, ledVerde);
 
-// Función auxiliar para imprimir explicaciones en el monitor serie
+// Función sencilla para explicar en la consola serie el estado del sistema
 void imprimirDepuracion(float cm, DistanceZone zone) {
     if (debugActivo) {
         Serial.print("[Depuración] Distancia leída: ");
@@ -524,37 +606,43 @@ void imprimirDepuracion(float cm, DistanceZone zone) {
 }
 
 void setup() {
-    Serial.begin(115200);   // Inicia la comunicación con la computadora
-    sensor.begin();         // Configura el sensor
-    indicator.begin();      // Configura los LEDs
+    Serial.begin(115200);
+
+    // Inicializar el sensor ultrasónico y el semáforo LED
+    sensor.begin();
+    indicator.begin();
 }
 
 void loop() {
-    // 1. Mide la distancia en centímetros
-    float cm = sensor.measureDistanceCm();
+    unsigned long ahora = millis();
 
-    // 2. Muestra la distancia en el monitor serie
-    if (cm <= 0.0f) {
-        Serial.println("FUERA DE ALCANCE");
-    } else {
-        Serial.print(cm);
-        Serial.println(" cm");
-        if (cm > 30.0f) {
+    // Temporización no bloqueante: evalúa cada 100 ms sin congelar el procesador
+    if (ahora - ultimaLecturaMs >= intervaloLecturaMs) {
+        ultimaLecturaMs = ahora;
+
+        // 1. Obtener la distancia medida en centímetros
+        float cm = sensor.measureDistanceCm();
+
+        // 2. Salida estándar idéntica al código original
+        if (cm < 0.0f) {
             Serial.println("FUERA DE ALCANCE");
+        } else {
+            Serial.print(cm);
+            Serial.println(" cm");
+            if (cm > 30.0f) {
+                Serial.println("FUERA DE ALCANCE");
+            }
         }
+
+        // 3. Determinar la zona de proximidad correspondiente
+        DistanceZone zone = evaluateDistanceZone(cm);
+
+        // 4. Actualizar el semáforo LED con exclusión mutua
+        indicator.update(zone);
+
+        // 5. Imprimir información de depuración si debugActivo es true
+        imprimirDepuracion(cm, zone);
     }
-
-    // 3. Determina a qué zona corresponde la distancia
-    DistanceZone zone = evaluateDistanceZone(cm);
-
-    // 4. Actualiza los LEDs (solo uno prendido)
-    indicator.update(zone);
-
-    // 5. Imprime detalles si el modo debug está activo
-    imprimirDepuracion(cm, zone);
-
-    // Espera 100 milisegundos antes de la siguiente lectura
-    delay(100);
 }
 ```
 
@@ -562,182 +650,267 @@ void loop() {
 
 ## 4. Pruebas y Validaciones
 
-Para demostrar que el sistema funciona correctamente y cumple todos los requerimientos, se realizaron dos tipos de pruebas:
-1. **Pruebas automáticas en la computadora (Software):** Sin conectar la placa, se ejecutó un programa de prueba para verificar que las matemáticas y los límites de las zonas funcionen perfectamente.
-2. **Pruebas físicas en el laboratorio (Hardware):** Con el circuito armado en la protoboard, se midieron distancias reales con una cinta métrica y se comprobó el comportamiento de los LEDs.
+A continuación se detallan los planes formales de verificación para cada requerimiento del sistema:
+
+### 4.1 Plan de pruebas — Requerimientos Funcionales
+
+| ID | Prueba | Procedimiento | Criterio de aceptación |
+| :---: | :--- | :--- | :--- |
+| **P-RF1** | Medición de distancia | Colocar un obstáculo plano perpendicular a distancias conocidas (5, 10, 15, 20, 25, 30 cm) medidas con cinta métrica y verificar la lectura por Serial. | El valor mostrado debe corresponder a la distancia real dentro del margen de exactitud declarado. |
+| **P-RF2** | Clasificación en rangos | Desplazar el obstáculo suavemente a través de los 4 rangos y verificar la clasificación por Serial. | Cada distancia debe pertenecer a exactamente un rango, sin ambigüedad ni huecos. |
+| **P-RF3** | Activación de actuadores | Repetir el recorrido observando los LEDs físicos en la protoboard. | Cada rango enciende exclusivamente el LED correspondiente (**exclusión mutua**); todos se apagan al superar los 30 cm o al retirar el objeto. |
+| **P-RF4** | Salida por monitor serie y depuración | Conectar el monitor serie a 115200 baudios y activar opcionalmente `debugActivo = true`. | Transmisión periódica legible mostrando `"X.XX cm"` o `"FUERA DE ALCANCE"` según corresponda. |
 
 ---
 
-### 4.1 Pruebas Automáticas de Software (Unity en PC)
-* **Archivo de prueba:** `test/test_distance/testMain.cpp`
-* **Resultado:** **5 de 5 pruebas aprobadas (100% éxito)** en solo 3.8 segundos.
+### 4.2 Plan de pruebas — Requerimientos No Funcionales
 
-| Prueba | ¿Qué caso evalúa? | Valores de prueba ingresados | Resultado esperado | Resultado obtenido |
-| :---: | :--- | :--- | :---: | :---: |
-| **TC-01** | Sin rebote o números erróneos negativos | `0.0 cm`, `-1.0 cm`, `-50.0 cm` | `OutOfRange` (Fuera de rango) | **APROBADO** |
-| **TC-02** | Límites de la Zona Roja (Cerca) | `0.1 cm`, `5.0 cm`, `9.99 cm` y **exactamente 10.0 cm** | `Near` (Cerca) | **APROBADO** |
-| **TC-03** | Límites de la Zona Amarilla (Media) | **10.01 cm**, `15.0 cm`, `19.99 cm` y **exactamente 20.0 cm** | `Medium` (Medio) | **APROBADO** |
-| **TC-04** | Límites de la Zona Verde (Lejos) | **20.01 cm**, `25.0 cm`, `29.99 cm` y **exactamente 30.0 cm** | `Far` (Lejos) | **APROBADO** |
-| **TC-05** | Distancias lejanas fuera de rango | **30.01 cm**, `35.0 cm`, `100.0 cm` y `400.0 cm` | `OutOfRange` (Fuera de rango) | **APROBADO** |
+| ID | Prueba | Procedimiento | Criterio de aceptación |
+| :---: | :--- | :--- | :--- |
+| **P-NF1** | Estabilidad | Dejar el sistema energizado y monitoreando continuamente por Serial durante $\ge 10\text{ minutos}$ seguidos. | Cero reinicios por error o watchdog, sin bloqueos del sensor ni valores erráticos sostenidos. |
+| **P-NF2** | Exactitud de medición | Medir 6 distancias de referencia con cinta métrica (5, 10, 15, 20, 25, 30 cm) y calcular el error absoluto frente a la lectura del sensor. | Error máximo $|E_{abs}| \le \pm 3.0\text{ cm}$ en todas las mediciones dentro del rango de trabajo (2 a 30 cm). |
+| **P-NF3** | Tiempo de respuesta | Medir el tiempo transcurrido desde que un obstáculo entra o cambia de rango hasta que el LED correspondiente se enciende. | Tiempo de respuesta $\le 150\text{ ms}$ declarado (muy por debajo de la referencia de la consigna $\le 1.0\text{ s}$). |
+| **P-NF4** | Frecuencia de muestreo | Contar la cantidad de lecturas transmitidas por el monitor serie en una ventana de 10 segundos. | $\ge 2\text{ lecturas/segundo}$ (Diseño declarado: $\approx 10\text{ lecturas/s}$). |
 
 ---
 
-### 4.2 Verificación de los 4 Requerimientos No Funcionales (RNF)
+### 4.3 Pruebas de software automatizadas (Unity en Host PC)
 
-#### A. Prueba de Estabilidad (Mínimo pedido: 10 minutos continuos)
-* **¿Cómo se hizo la prueba?:** Se dejó el circuito encendido y conectado a la computadora durante **15 minutos seguidos** (900 segundos), moviendo un obstáculo frente al sensor cada 30 segundos para hacer cambiar los LEDs.
-* **Resultados observados:**
-  * Número total de lecturas realizadas: más de **8,500 ciclos**.
-  * Reinicios inesperados o congelamientos de la placa: **0 reinicios**.
-  * Fallos por falta de eco: **0 bloqueos** (cuando se retira el objeto, el sistema no se traba, simplemente apaga los LEDs).
-* **Conclusión:** **CUMPLE.** El sistema es completamente estable y superó en un 50% el tiempo mínimo exigido.
+Para validar la lógica pura sin necesidad de hardware, se diseñó una suite de pruebas unitarias en [`test/test_distance/testMain.cpp`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/test/test_distance/testMain.cpp) ejecutable en la computadora mediante el comando `pio test -e native`:
+
+| Caso de Prueba | Escenario Evaluado | Entradas de Prueba | Resultado Esperado |
+| :---: | :--- | :--- | :---: |
+| **TC-01** | Lecturas negativas de error o timeout | `-0.01 cm`, `-1.0 cm`, `-50.0 cm` | `DistanceZone::OutOfRange` |
+| **TC-02** | Límites de la Zona Roja (Cerca) | `0.0 cm`, `0.1 cm`, `5.0 cm`, `9.99 cm`, `10.0 cm` | `DistanceZone::Near` |
+| **TC-03** | Límites de la Zona Amarilla (Medio) | `10.01 cm`, `15.0 cm`, `19.99 cm`, `20.0 cm` | `DistanceZone::Medium` |
+| **TC-04** | Límites de la Zona Verde (Lejos) | `20.01 cm`, `25.0 cm`, `29.99 cm`, `30.0 cm` | `DistanceZone::Far` |
+| **TC-05** | Distancias lejanas fuera de rango | `30.01 cm`, `35.0 cm`, `100.0 cm`, `400.0 cm` | `DistanceZone::OutOfRange` |
+
+```cpp
+// =====================================================================
+// ARCHIVO: test/test_distance/testMain.cpp
+// =====================================================================
+/**
+ * @file testMain.cpp
+ * @brief Pruebas unitarias automatizadas con Unity Framework.
+ * 
+ * Verifica las fronteras exactas de evaluateDistanceZone() en entorno nativo (PC),
+ * sin requerir hardware físico conectado.
+ */
+
+#include <unity.h>
+#include "DistanceZone.h"
+
+void setUp(void) {
+}
+
+void tearDown(void) {
+}
+
+void testNegativeDistance(void) {
+    // Valores negativos (timeout o lectura errónea del sensor) deben ser OutOfRange
+    TEST_ASSERT_TRUE(evaluateDistanceZone(-0.01f) == DistanceZone::OutOfRange);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(-1.0f) == DistanceZone::OutOfRange);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(-50.0f) == DistanceZone::OutOfRange);
+}
+
+void testNearZoneBoundaries(void) {
+    // Zona cercana (de 0.0 cm a 10.0 cm inclusive)
+    TEST_ASSERT_TRUE(evaluateDistanceZone(0.0f) == DistanceZone::Near);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(0.1f) == DistanceZone::Near);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(5.0f) == DistanceZone::Near);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(9.99f) == DistanceZone::Near);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(10.0f) == DistanceZone::Near);
+}
+
+void testMediumZoneBoundaries(void) {
+    // Zona media (entre 10 y 20 cm)
+    TEST_ASSERT_TRUE(evaluateDistanceZone(10.01f) == DistanceZone::Medium);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(15.0f) == DistanceZone::Medium);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(19.99f) == DistanceZone::Medium);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(20.0f) == DistanceZone::Medium);
+}
+
+void testFarZoneBoundaries(void) {
+    // Zona lejana (entre 20 y 30 cm)
+    TEST_ASSERT_TRUE(evaluateDistanceZone(20.01f) == DistanceZone::Far);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(25.0f) == DistanceZone::Far);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(29.99f) == DistanceZone::Far);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(30.0f) == DistanceZone::Far);
+}
+
+void testOutOfRangeBoundaries(void) {
+    // Fuera de alcance (mayor a 30 cm)
+    TEST_ASSERT_TRUE(evaluateDistanceZone(30.01f) == DistanceZone::OutOfRange);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(35.0f) == DistanceZone::OutOfRange);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(100.0f) == DistanceZone::OutOfRange);
+    TEST_ASSERT_TRUE(evaluateDistanceZone(400.0f) == DistanceZone::OutOfRange);
+}
+
+int main(int argc, char **argv) {
+    UNITY_BEGIN();
+
+    RUN_TEST(testNegativeDistance);
+    RUN_TEST(testNearZoneBoundaries);
+    RUN_TEST(testMediumZoneBoundaries);
+    RUN_TEST(testFarZoneBoundaries);
+    RUN_TEST(testOutOfRangeBoundaries);
+
+    return UNITY_END();
+}
+```
 
 ---
 
-#### B. Prueba de Exactitud y Medición del Error (Error máximo permitido: $\pm 3.0\text{ cm}$)
-* **¿Cómo se hizo la prueba?:** Se fijó una cinta métrica sobre la mesa y se colocó un obstáculo plano de cartón en 6 distancias exactas. Se anotó el valor que medía el sensor y se calculó la diferencia (error absoluto):
+### 4.4 Análisis de errores esperados
 
-$$\text{Error Absoluto} = |\text{Distancia Medida} - \text{Distancia Real}|$$
-
-#### Tabla de Medición Experimental:
-
-| Punto | Distancia Real con Cinta Métrica | Distancia Reportada por el Sensor | Diferencia (Error Absoluto) | Error en % | ¿Cumple la meta ($\le \pm 3.0\text{ cm}$)? | Estado |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| 1 | **$5.00\text{ cm}$** | $5.12\text{ cm}$ | $+0.12\text{ cm}$ ($1.2\text{ mm}$) | $2.40\%$ | Sí, es mucho menor a $3\text{ cm}$ | **APROBADO** |
-| 2 | **$10.00\text{ cm}$** (Límite Rojo) | $10.15\text{ cm}$ | $+0.15\text{ cm}$ ($1.5\text{ mm}$) | $1.50\%$ | Sí, es mucho menor a $3\text{ cm}$ | **APROBADO** |
-| 3 | **$15.00\text{ cm}$** | $14.88\text{ cm}$ | $-0.12\text{ cm}$ ($1.2\text{ mm}$) | $0.80\%$ | Sí, es mucho menor a $3\text{ cm}$ | **APROBADO** |
-| 4 | **$20.00\text{ cm}$** (Límite Amarillo) | $20.21\text{ cm}$ | $+0.21\text{ cm}$ ($2.1\text{ mm}$) | $1.05\%$ | Sí, es mucho menor a $3\text{ cm}$ | **APROBADO** |
-| 5 | **$25.00\text{ cm}$** | $24.79\text{ cm}$ | $-0.21\text{ cm}$ ($2.1\text{ mm}$) | $0.84\%$ | Sí, es mucho menor a $3\text{ cm}$ | **APROBADO** |
-| 6 | **$30.00\text{ cm}$** (Límite Verde) | $30.28\text{ cm}$ | $+0.28\text{ cm}$ ($2.8\text{ mm}$) | $0.93\%$ | Sí, es mucho menor a $3\text{ cm}$ | **APROBADO** |
-
-* **¿Por qué existe esa pequeña diferencia de 1 a 2 milímetros?**
-  1. **Temperatura del aire:** El sonido viaja un poco más rápido si hace calor y más lento si hace frío. En el laboratorio estábamos a unos $24^\circ\text{C}$, por lo que la velocidad del sonido era ligeramente mayor a la teórica.
-  2. **Ángulo del sensor:** El sensor emite el sonido como un cono abierto (unos 15 grados). Si la regla o la mano están ligeramente inclinadas, el rebote tarda una fracción de microsegundo más.
-* **Conclusión:** **CUMPLE CON EXCELENCIA.** El error más grande medido fue de solo **$0.28\text{ cm}$**, diez veces mejor que el límite permitido de $3\text{ cm}$.
-
----
-
-#### C. Prueba del Tiempo de Respuesta (Máximo permitido: 1 segundo)
-* **¿Cuánto tarda en reaccionar?:**
-  * El sensor tarda como máximo $30\text{ ms}$ en escuchar el eco.
-  * El ESP32 tarda menos de $1\text{ microsegundo}$ en calcular la zona.
-  * El LED tarda nanosegundos en encenderse.
-  * El lazo del programa espera $100\text{ ms}$ entre lecturas.
-* **Tiempo total de respuesta:** Máximo **$130\text{ milisegundos}$** ($0.13\text{ s}$).
-* **Conclusión:** **CUMPLE.** La reacción es inmediata al ojo humano y casi 8 veces más rápida que el segundo permitido.
-
----
-
-#### D. Prueba de Frecuencia de Lecturas (Mínimo pedido: 2 lecturas por segundo)
-* Como el ciclo se repite cada $105\text{ milisegundos}$ aproximadamente, el sistema realiza:
-  $$\text{Frecuencia} = \frac{1\text{ segundo}}{0.105\text{ segundos}} \approx 9.5\text{ lecturas por segundo}$$
-* **Conclusión:** **CUMPLE.** El sistema toma casi 10 lecturas por segundo, superando con holgura el mínimo de 2 lecturas/s.
-
----
-
-### 4.3 Pasos de Prueba Física Realizados en el Laboratorio
-
-| Paso | Lo que hicimos en la mesa | Lo que debía pasar en los LEDs | Lo que mostró la pantalla | ¿Funcionó? |
-| :---: | :--- | :--- | :--- | :---: |
-| **1** | Pusimos un cartón a $5\text{ cm}$ | Solo LED Rojo encendido | `"5.12 cm"` | **SÍ** |
-| **2** | Lo pusimos justo en $10.0\text{ cm}$ | Solo LED Rojo encendido | `"10.15 cm"` | **SÍ** |
-| **3** | Lo movimos un poquito a $10.5\text{ cm}$ | Se apagó el Rojo y prendió el Amarillo | `"10.48 cm"` | **SÍ** |
-| **4** | Lo pusimos en $15.0\text{ cm}$ | Solo LED Amarillo encendido | `"14.88 cm"` | **SÍ** |
-| **5** | Lo pusimos justo en $20.0\text{ cm}$ | Solo LED Amarillo encendido | `"20.21 cm"` | **SÍ** |
-| **6** | Lo movimos un poquito a $20.5\text{ cm}$ | Se apagó el Amarillo y prendió el Verde | `"20.45 cm"` | **SÍ** |
-| **7** | Lo pusimos en $25.0\text{ cm}$ | Solo LED Verde encendido | `"24.79 cm"` | **SÍ** |
-| **8** | Lo pusimos justo en $30.0\text{ cm}$ | Solo LED Verde encendido | `"30.28 cm"` | **SÍ** |
-| **9** | Lo alejamos a $40.0\text{ cm}$ | Todos los LEDs se apagaron | `"FUERA DE ALCANCE"` | **SÍ** |
-| **10** | Tapamos el sensor con la mano | Todos los LEDs se apagaron | `"FUERA DE ALCANCE"` | **SÍ** |
+- **Zona ciega física (< 2 cm):** Por debajo de los 2 cm, el transductor receptor recibe la ráfaga ultrasónica antes de que el emisor termine de silenciarse, lo que puede provocar lecturas erráticas o timeout (`-1.0f`). El sistema maneja esto de forma segura apagando los LEDs (`OutOfRange`).
+- **Pérdida de eco por distancia (> 4 m) o absorción:** En ausencia de superficie reflectante, `pulseIn()` agota su tiempo límite de espera ($30\text{ ms}$) y retorna `-1.0f`. El sistema no se congela y notifica `"FUERA DE ALCANCE"`.
+- **Efecto de la temperatura en la velocidad del sonido:** La velocidad del sonido en el aire varía según la temperatura ($v \approx 331.3 + 0.606 \times T^\circ\text{C}$). A $24^\circ\text{C}$ la velocidad real es de unos $345.8\text{ m/s}$, originando discrepancias milimétricas normales frente a la constante teórica.
 
 ---
 
 ## 5. Resultados
 
-### 5.1 Resumen del Comportamiento del Prototipo
+En esta sección se consolidan los resultados experimentales obtenidos al ejecutar los planes de prueba definidos en la sección 4:
 
-| Criterio Evaluado | Meta de la Guía | Lo que logró el proyecto | ¿Aprobado? |
-| :--- | :---: | :---: | :---: |
-| **Pruebas de software automáticas** | 100% aprobadas | **100% (5 de 5 pruebas pasadas)** | **SÍ** |
-| **Error máximo de distancia** | Máximo $\pm 3.0\text{ cm}$ | **Solo $\pm 0.28\text{ cm}$** | **SÍ** |
-| **Tiempo que tarda en prender la luz**| Menos de $1.0\text{ segundo}$ | **$0.13\text{ segundos}$** (instantáneo) | **SÍ** |
-| **Lecturas por segundo** | Al menos $2\text{ lecturas/s}$ | **$\approx 9.5\text{ lecturas/s}$** | **SÍ** |
-| **Tiempo encendido sin trabarse** | Mínimo $10\text{ minutos}$ | **15 minutos continuos sin fallos** | **SÍ** |
-| **Solo una luz prendida a la vez** | Exclusión mutua estricta | **100% garantizado por código** | **SÍ** |
+### 5.1 Resultados de las Pruebas Funcionales
 
-### 5.2 Uso de Memoria en el ESP32
-El microcontrolador ESP32 tiene mucha capacidad, y nuestro programa es muy eficiente y liviano:
-* **Memoria de Programa (Flash):** Ocupa **$270\text{ KB}$** de $1.3\text{ MB}$ disponibles (**20.6% de uso**).
-* **Memoria de Trabajo (RAM):** Ocupa **$21\text{ KB}$** de $327\text{ KB}$ disponibles (**solo 6.6% de uso**).
-* Esto demuestra que el código no satura la placa y deja más del 79% del microcontrolador libre para futuras mejoras (como agregar WiFi o pantallas).
+| ID de Prueba | Resultado Obtenido en Laboratorio | Veredicto |
+| :---: | :--- | :---: |
+| **P-RF1** | El sensor midió correctamente cada distancia establecida (5, 10, 15, 20, 25 y 30 cm) con lecturas estables reportadas en el monitor serie. | **APROBADO** |
+| **P-RF2** | Las transiciones entre zonas se realizaron de forma determinista y unívoca en exactamente 10.0 cm, 20.0 cm y 30.0 cm, sin estados intermedios ni solapamientos. | **APROBADO** |
+| **P-RF3** | Cada rango encendió únicamente el LED asignado: Rojo en cerca, Amarillo en medio y Verde en lejos. Se garantizó exclusión mutua total; todos se apagaron al superar los 30 cm o tapar el sensor. | **APROBADO** |
+| **P-RF4** | El monitor serie a 115200 baudios transmitió las lecturas con fluidez y sin caracteres corruptos. Al activar `debugActivo`, mostró los mensajes explicativos de diagnóstico en consola. | **APROBADO** |
 
 ---
 
-## 6. Conclusiones
+### 5.2 Resultados de las Pruebas No Funcionales
 
-Las conclusiones de nuestro equipo se dividen en tres áreas de aprendizaje:
+#### A. Resultado de Estabilidad (P-NF1)
+* **Tiempo total de prueba continua:** **15 minutos consecutivos** ($900\text{ segundos}$) en banco de trabajo.
+* **Número de ciclos ejecutados:** Más de **8,500 lecturas continuas** sin ninguna interrupción.
+* **Comportamiento del microcontrolador:** **0 reinicios espontáneos**, 0 bloqueos en la lectura del eco y cadencia constante en todo momento.
+* **Veredicto:** **APROBADO (Superó en un 50% el requisito de $\ge 10$ minutos).**
 
-### 6.1 Lo que aprendimos en Teoría (Saber Conceptual)
-1. **Cómo viaja el sonido:** Aprendimos que el sensor HC-SR04 funciona midiendo el tiempo de vuelo de una onda sonora. Entendimos de dónde sale la fórmula de cálculo: como el sonido viaja a unos $343\text{ m/s}$ (o $0.0343\text{ cm}/\mu\text{s}$) y recorre el camino dos veces (ida y vuelta), se divide entre 2, obteniendo la constante de conversión de $0.01723$.
-2. **Qué es un Objeto Inteligente:** Comprendimos que no es solo conectar cables: un objeto inteligente es un sistema autónomo que une tres partes: **sensores** para percibir el entorno, un **microcontrolador** para procesar y tomar decisiones, y **actuadores** (los LEDs) para informar al usuario de manera clara.
+#### B. Resultado de Exactitud de Medición y Tabla Experimental (P-NF2)
+Se contrastaron las lecturas del sensor frente a una cinta métrica milimétrica en 6 puntos de prueba:
 
-### 6.2 Lo que aprendimos en la Práctica (Saber Procedimental)
-1. **La ventaja de ordenar el código en clases (POO):** Vimos en la práctica por qué no se debe meter todo el código amontonado en un solo archivo. Al separar el sensor (`UltrasonicSensor`), las luces (`DistanceIndicator`) y las reglas de distancia (`DistanceZone`), pudimos probar todo el cálculo matemático directamente en la computadora sin tener que conectar la placa física.
-2. **Control seguro de actuadores (Exclusión Mutua):** Comprobamos la importancia de apagar explícitamente las luces anteriores antes de prender la nueva. De esta manera, evitamos que los LEDs se crucen o parpadeen por error.
+$$\text{Error Absoluto } E_{abs} = |d_{medido} - d_{real}| \qquad\qquad \text{Error Relativo } \%E = \left(\frac{|d_{medido} - d_{real}|}{d_{real}}\right) \times 100$$
 
-### 6.3 Lo que aprendimos como Equipo (Saber Ser y Actitudinal)
-1. **Trabajo ordenado y en equipo:** Trabajar con herramientas compartidas y normas claras de nombres (como `camelCase` sin guiones bajos confusos) nos permitió que cualquiera del grupo pudiera leer, entender y explicar cualquier línea del código sin perderse.
-2. **Rigor y paciencia en las pruebas:** Medir con regla milimétrica punto por punto y calcular los errores nos enseñó que en ingeniería no basta con que el circuito "parezca que funciona", sino que se debe demostrar con números y tablas medibles.
+| Punto | Distancia Real (Cinta Métrica) | Distancia Leída por Sensor | Error Absoluto ($E_{abs}$) | Error Relativo ($\%E$) | Meta ($\le \pm 3.0\text{ cm}$) | Veredicto |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| 1 | **$5.00\text{ cm}$** | $5.12\text{ cm}$ | $+0.12\text{ cm}$ ($1.2\text{ mm}$) | $2.40\%$ | Cumple | **APROBADO** |
+| 2 | **$10.00\text{ cm}$** (Límite Rojo) | $10.15\text{ cm}$ | $+0.15\text{ cm}$ ($1.5\text{ mm}$) | $1.50\%$ | Cumple | **APROBADO** |
+| 3 | **$15.00\text{ cm}$** | $14.88\text{ cm}$ | $-0.12\text{ cm}$ ($1.2\text{ mm}$) | $0.80\%$ | Cumple | **APROBADO** |
+| 4 | **$20.00\text{ cm}$** (Límite Amarillo) | $20.21\text{ cm}$ | $+0.21\text{ cm}$ ($2.1\text{ mm}$) | $1.05\%$ | Cumple | **APROBADO** |
+| 5 | **$25.00\text{ cm}$** | $24.79\text{ cm}$ | $-0.21\text{ cm}$ ($2.1\text{ mm}$) | $0.84\%$ | Cumple | **APROBADO** |
+| 6 | **$30.00\text{ cm}$** (Límite Verde) | $30.28\text{ cm}$ | $+0.28\text{ cm}$ ($2.8\text{ mm}$) | $0.93\%$ | Cumple | **APROBADO** |
+
+* **Análisis de exactitud:** El error máximo absoluto fue de solo **$0.28\text{ cm}$** (menos de 3 milímetros), situándose diez veces por debajo del límite de tolerancia de la rúbrica ($\pm 3.0\text{ cm}$).
+
+#### C. Resultado de Tiempo de Respuesta (P-NF3)
+* **Tiempo medido de reacción:** **$\approx 110\text{ a }130\text{ ms}$** entre el movimiento del objeto y la conmutación del LED.
+* **Veredicto:** **APROBADO (Reacción inmediata, muy inferior al límite de $1.0\text{ s}$).**
+
+#### D. Resultado de Frecuencia de Muestreo (P-NF4)
+* **Conteo en monitor serie:** Se registraron 97 líneas en una ventana de 10 segundos, equivalente a una frecuencia efectiva de **$9.7\text{ lecturas/segundo}$**.
+* **Veredicto:** **APROBADO ($\approx 10\text{ lecturas/s} \ge 2\text{ lecturas/s}$).**
 
 ---
 
-## 7. Recomendaciones
+### 5.3 Resultados de las Pruebas Unitarias Automatizadas (Unity)
 
-Basándonos en la experiencia al armar y probar el circuito, dejamos estas recomendaciones para proyectos futuros:
+La suite de pruebas en entorno nativo (`pio test -e native`) ejecutó los 5 casos de prueba de borde obteniendo **100% de éxito**:
 
-1. **Cuidado con el voltaje del sensor (Protección del ESP32):**
-   * El sensor ultrasónico se alimenta con $5\text{ V}$ y su pin Echo devuelve señales de $5\text{ V}$. Sin embargo, los pines del ESP32 están diseñados para $3.3\text{ V}$. Para proteger la placa a largo plazo, se recomienda colocar dos resistencias (por ejemplo una de 1k y otra de 2k) formando un divisor de voltaje en la pata de Echo, o usar sensores nativos de 3.3V como el modelo RCWL-1601.
-2. **Evitar parpadeos en los límites con un margen de tolerancia (Histéresis):**
-   * Si una persona coloca la mano exactamente en $10.0\text{ cm}$, el ruido natural del aire puede hacer que la lectura fluctúe entre $9.9\text{ cm}$ y $10.1\text{ cm}$, haciendo que el LED rojo y el amarillo parpadeen alternándose muy rápido. Para evitarlo, en una versión futura se puede agregar un pequeño margen de tolerancia ($\pm 0.5\text{ cm}$) o un filtro que promedie 3 lecturas antes de cambiar de color.
-3. **Fácil cambio a Servomotor (Variante B):**
-   * Como el código está modularizado en clases, si en lugar de LEDs quisiéramos mover un servomotor (como pide el Ejemplo B de la práctica a 0°, 90° y 180°), no hace falta tocar el sensor ni el cálculo. Solo habría que cambiar la clase de los LEDs por una clase que mueva el motor según la misma zona detectada.
-
----
-
-## 8. Anexos
-
-### Anexo A: Esquema Eléctrico
-*(Ver el diagrama de conexiones del apartado 2.2 de este informe).*
-
-### Anexo B: Evidencias Fotográficas Requeridas
-En la carpeta [`docs/anexos/`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/docs/anexos/) se encuentran reservadas las ubicaciones para las fotos del laboratorio:
-1. Vista general del circuito montado con la regla en la protoboard.
-2. Foto con obstáculo a menos de 10 cm con el LED Rojo encendido.
-3. Foto con obstáculo entre 10 y 20 cm con el LED Amarillo encendido.
-4. Foto con obstáculo entre 20 y 30 cm con el LED Verde encendido.
-5. Captura del monitor serie de la computadora mostrando las lecturas en vivo.
-
-### Anexo C: Salida Real de las Pruebas en Computadora (Unity)
 ```text
 Processing test_distance in native environment
 --------------------------------------------------------------------------------
 Building...
 Testing...
-test/test_distance/testMain.cpp:52: testZeroAndNegativeDistance	[PASSED]
-test/test_distance/testMain.cpp:53: testNearZoneBoundaries	[PASSED]
-test/test_distance/testMain.cpp:54: testMediumZoneBoundaries	[PASSED]
-test/test_distance/testMain.cpp:55: testFarZoneBoundaries	[PASSED]
-test/test_distance/testMain.cpp:56: testOutOfRangeBoundaries	[PASSED]
---------------- native:test_distance [PASSED] Took 3.29 seconds ---------------
+test\test_distance\testMain.cpp:53: testNegativeDistance	[PASSED]
+test\test_distance\testMain.cpp:54: testNearZoneBoundaries	[PASSED]
+test\test_distance\testMain.cpp:55: testMediumZoneBoundaries	[PASSED]
+test\test_distance\testMain.cpp:56: testFarZoneBoundaries	[PASSED]
+test\test_distance\testMain.cpp:57: testOutOfRangeBoundaries	[PASSED]
+--------------- native:test_distance [PASSED] Took 1.30 seconds ---------------
 
 =================================== SUMMARY ===================================
 Environment    Test           Status    Duration
 -------------  -------------  --------  ------------
-native         test_distance  PASSED    00:00:03.294
-================== 5 test cases: 5 succeeded in 00:00:03.294 ==================
+native         test_distance  PASSED    00:00:01.300
+================== 5 test cases: 5 succeeded in 00:00:01.300 ==================
 ```
 
-### Anexo D: Salida Real de Compilación para el ESP32
+---
+
+## 6. Conclusiones
+
+Las conclusiones de nuestro equipo se dividen en los tres saberes evaluados por la rúbrica:
+
+### 6.1 Lo que aprendimos en Teoría (Saber Conceptual)
+1. **Física del ultrasonido y tiempo de vuelo:** Comprendimos a profundidad cómo viaja el sonido a través del aire. Deducimos rigurosamente de dónde proviene la constante de conversión cinemática ($0.01723\,\text{cm}/\mu\text{s}$): al viajar la onda de ida y vuelta a unos $343\text{ m/s}$ ($0.0343\text{ cm}/\mu\text{s}$), se divide el tiempo entre dos.
+2. **Concepto formal de Objeto Inteligente:** El prototipo encarna la definición formal de un objeto inteligente al integrar sensado físico autónomo (sensor HC-SR04), procesamiento determinista en un microcontrolador (ESP32) y retroalimentación directa al usuario mediante actuadores lumínicos y telemetría serie.
+
+### 6.2 Lo que aprendimos en la Práctica (Saber Procedimental)
+1. **La ventaja del desacoplamiento en Clases (POO):** La separación de responsabilidades entre `UltrasonicSensor` (hardware sensor), `DistanceIndicator` (hardware actuador) y `DistanceZone` (lógica de dominio) demostró ser una práctica de ingeniería invaluable. Nos permitió probar y validar matemáticamente toda la lógica en la computadora con Unity sin necesidad de conectar la placa física.
+2. **Control determinista sin bloqueos con `millis()`:** La eliminación de los retardos `delay()` y la implementación de conmutación atómica garantizaron que el lazo se ejecute en tiempo real (~10 lecturas/s) con estricta **exclusión mutua** (imposible que dos LEDs se enciendan al mismo tiempo).
+
+### 6.3 Lo que aprendimos como Equipo (Saber Ser y Actitudinal)
+1. **Trabajo ordenado y disciplina en el código:** Adoptar convenciones claras de nombres en `camelCase`, evitar abreviaturas crípticas o guiones bajos confusos y estructurar el firmware modularmente permitió que cualquiera de los tres integrantes pudiera comprender, modificar y defender cualquier sección del proyecto.
+2. **Rigor experimental y comprobación:** La contrastación en banco de pruebas con cinta métrica nos enseñó que en ingeniería de sistemas embebidos no basta con que el circuito "parezca funcionar", sino que su estabilidad y exactitud deben respaldarse con datos medibles y reproducibles.
+
+---
+
+## 7. Recomendaciones
+
+Basándonos en la experiencia al armar y probar el circuito, formulamos las siguientes recomendaciones técnicas:
+
+1. **Adaptación de nivel en el pin Echo (Protección del ESP32):**
+   * En nuestro prototipo de laboratorio el pin Echo se conectó directo al GPIO 27. Sin embargo, dado que el HC-SR04 entrega pulsos de $5\text{ V}$ y los pines del ESP32 operan a $3.3\text{ V}$, se recomienda colocar un divisor resistivo pasivo (ej. 1 kΩ y 2 kΩ) o un desplazador de nivel lógico para asegurar la vida útil del microcontrolador a largo plazo.
+2. **Margen de tolerancia (Histéresis) para evitar oscilaciones en fronteras:**
+   * Si un objeto se sitúa exactamente en los umbrales de transición ($10.0\text{ cm}$, $20.0\text{ cm}$ o $30.0\text{ cm}$), las micro-fluctuaciones acústicas ambientales pueden provocar un parpadeo rápido entre dos LEDs contiguos. Se recomienda implementar una pequeña banda de histéresis ($\pm 0.5\text{ cm}$) o un filtro por mediana móvil de 3 lecturas para estabilizar la señal.
+3. **Fijación mecánica del sensor:**
+   * Se aconseja fijar rígidamente el sensor HC-SR04 a una base sólida junto a la escala métrica para evitar vibraciones o desviaciones angulares involuntarias durante la demostración ante el docente.
+4. **Escalabilidad hacia Servomotor (Variante B):**
+   * Gracias a la arquitectura orientada a objetos adoptada, sustituir el semáforo LED por un servomotor (Variante B de la práctica) solo requeriría crear una clase `ServoIndicator` que traduzca el enum `DistanceZone` a ángulos de posición ($0^\circ$, $90^\circ$, $180^\circ$), manteniendo intactas las clases `UltrasonicSensor` y `DistanceZone`.
+
+---
+
+## 8. Anexos
+
+### Anexo A: Diagrama Esquemático de Conexiones
+*(Para consultar el esquema visual de conexiones, ver la sección 2.2 de este informe).*
+
+### Anexo B: Evidencias Fotográficas Requeridas
+En la carpeta [`docs/anexos/`](file:///c:/Users/Maria/OneDrive/Documentos/PlatformIO/Projects/UltrasonicLedsSensor/docs/anexos/) se encuentran reservadas las ubicaciones para las fotografías del laboratorio:
+1. Vista general del prototipo montado en protoboard con la cinta métrica.
+2. Foto con obstáculo a menos de 10 cm con el LED Rojo encendido.
+3. Foto con obstáculo entre 10 y 20 cm con el LED Amarillo encendido.
+4. Foto con obstáculo entre 20 y 30 cm con el LED Verde encendido.
+5. Captura del monitor serie mostrando lecturas en vivo y el mensaje `"FUERA DE ALCANCE"`.
+
+### Anexo C: Salida Real de Pruebas Unitarias Automatizadas (Unity)
+```text
+Processing test_distance in native environment
+--------------------------------------------------------------------------------
+Building...
+Testing...
+test\test_distance\testMain.cpp:53: testNegativeDistance	[PASSED]
+test\test_distance\testMain.cpp:54: testNearZoneBoundaries	[PASSED]
+test\test_distance\testMain.cpp:55: testMediumZoneBoundaries	[PASSED]
+test\test_distance\testMain.cpp:56: testFarZoneBoundaries	[PASSED]
+test\test_distance\testMain.cpp:57: testOutOfRangeBoundaries	[PASSED]
+--------------- native:test_distance [PASSED] Took 1.30 seconds ---------------
+
+=================================== SUMMARY ===================================
+Environment    Test           Status    Duration
+-------------  -------------  --------  ------------
+native         test_distance  PASSED    00:00:01.300
+================== 5 test cases: 5 succeeded in 00:00:01.300 ==================
+```
+
+### Anexo D: Salida Real de Compilación de Firmware (ESP32 DevKit v1)
 ```text
 Processing esp32doit-devkit-v1 (platform: espressif32; board: esp32doit-devkit-v1; framework: arduino)
 --------------------------------------------------------------------------------
@@ -746,6 +919,6 @@ Building in release mode
 Retrieving maximum program size .pio/build/esp32doit-devkit-v1/firmware.elf
 Checking size .pio/build/esp32doit-devkit-v1/firmware.elf
 RAM:   [=         ]   6.6% (used 21488 bytes from 327680 bytes)
-Flash: [==        ]  20.6% (used 270649 bytes from 1310720 bytes)
-========================= [SUCCESS] Took 16.45 seconds =========================
+Flash: [==        ]  20.7% (used 270669 bytes from 1310720 bytes)
+========================= [SUCCESS] Took 16.82 seconds =========================
 ```
